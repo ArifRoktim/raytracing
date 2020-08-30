@@ -10,3 +10,9 @@ edition = "2018"
 version = "0.18.0"
 default-features = false
 features = ["x11"]
+
+[dependencies.rand]
+version = "0.7.3"
+default-features = false
+features = ["std", "small_rng"]
+

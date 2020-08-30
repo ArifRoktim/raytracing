@@ -1,25 +1,28 @@
 use minifb::{Key, Window, WindowOptions};
+use rand::rngs::SmallRng;
+use rand::{Rng, SeedableRng};
 use raytracing::shape::Sphere;
-use raytracing::{HitList, Hittable, Ray, Rgb, Vec3};
+use raytracing::{Camera, HitList, Hittable, Ray, Rgb, Screen, Vec3};
 use std::f64;
 use std::io::{self, Write};
 
 const RESOLUTIONS: &[[usize; 2]] = &[
     [384, 216],   // 0
     [640, 360],   // 1
-    [1280, 720],  // 2
-    [1600, 900],  // 3
-    [1920, 1080], // 4
+    [1024, 576],  // 2
+    [1280, 720],  // 3
+    [1600, 900],  // 4
+    [1920, 1080], // 5
 ];
 const DIM: [usize; 2] = RESOLUTIONS[2];
+const SAMPLES_PER_PIXEL: u16 = 100;
 
 fn main() {
+    let mut rng = SmallRng::from_entropy();
+
     let width = DIM[0];
     let height = DIM[1];
-    // The camera assumes width and height have aspect ratio of 16:9
-    let horiz = Vec3::new(4., 0., 0.);
-    let vert = Vec3::new(0., 2.25, 0.);
-    let lower_left_corner = Vec3::ORIGIN - horiz / 2. - vert / 2. - Vec3::new(0., 0., 1.);
+    let camera = Camera::default();
 
     let mut world = HitList::new();
     world.push(Sphere::from([0., 0., -1.], 0.5));
@@ -27,17 +30,35 @@ fn main() {
 
     let mut screen = Screen::new(width, height);
     for (y, row) in screen.rows_mut().enumerate() {
-        if y % 100 == 0 {
-            print!("\rScanlines remaining: {} ", height - y);
+        if (height - y - 1) % 100 == 0 {
+            print!("\rScanlines remaining: {:<3}", height - y - 1);
             io::stdout().flush().unwrap();
         }
-        let j = (height - y - 1) as f64 / (height as f64 - 1.);
 
         for (x, pix) in row.iter_mut().enumerate() {
-            let i = x as f64 / (width as f64 - 1.);
-            let ray = Ray::new(Vec3::ORIGIN, lower_left_corner + i * horiz + j * vert);
+            let mut color = [0u32; 3];
+            for _ in 0..SAMPLES_PER_PIXEL {
+                // Don't do antialiasing when only using 1 sample
+                let (rand_i, rand_j): (f64, f64) = if SAMPLES_PER_PIXEL == 1 {
+                    (0., 0.)
+                } else {
+                    (rng.gen(), rng.gen())
+                };
 
-            *pix = ray_color(&world, &ray);
+                let i = (x as f64 + rand_i) / (width as f64 - 1.);
+                let j = (y as f64 + rand_j) / (height as f64 - 1.);
+                let j = 1. - j;
+
+                let sample = ray_color(&world, &camera.get_ray(i, j));
+                color[0] += sample.r as u32;
+                color[1] += sample.g as u32;
+                color[2] += sample.b as u32;
+            }
+
+            color[0] /= SAMPLES_PER_PIXEL as u32;
+            color[1] /= SAMPLES_PER_PIXEL as u32;
+            color[2] /= SAMPLES_PER_PIXEL as u32;
+            *pix = Rgb::new(color[0] as u8, color[1] as u8, color[2] as u8);
         }
     }
     println!("\nDone!");
@@ -59,36 +80,4 @@ fn ray_color(world: &HitList, ray: &Ray) -> Rgb {
     let unit_dir = Vec3::normalized(ray.dir);
     let t = 0.5 * (unit_dir.y + 1.);
     (1. - t) * Rgb::f64(1., 1., 1.) + t * Rgb::f64(0.5, 0.7, 1.)
-}
-
-struct Screen {
-    pub width: usize,
-    pub height: usize,
-    /// Flat buffer of 24-bit pixels with length of `width * height`
-    pub buffer: Box<[Rgb]>,
-}
-
-impl Screen {
-    pub fn new(width: usize, height: usize) -> Self {
-        Self {
-            width,
-            height,
-            buffer: vec![Rgb::default(); width * height].into(),
-        }
-    }
-
-    /// Encodes each Pixel into `0RGB`
-    pub fn encode(&self) -> Box<[u32]> {
-        self.buffer
-            .iter()
-            .map(|p| {
-                let (r, g, b) = (p.r as u32, p.g as u32, p.b as u32);
-                (r << 16) | (g << 8) | b
-            })
-            .collect()
-    }
-
-    pub fn rows_mut(&mut self) -> std::slice::ChunksExactMut<Rgb> {
-        self.buffer.chunks_exact_mut(self.width)
-    }
 }
