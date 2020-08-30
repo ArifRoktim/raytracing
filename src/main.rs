@@ -16,6 +16,7 @@ const RESOLUTIONS: &[[usize; 2]] = &[
 ];
 const DIM: [usize; 2] = RESOLUTIONS[2];
 const SAMPLES_PER_PIXEL: u16 = 100;
+const MAX_RECURSION: u32 = 2;
 
 fn main() {
     let mut rng = SmallRng::from_entropy();
@@ -49,7 +50,7 @@ fn main() {
                 let j = (y as f64 + rand_j) / (height as f64 - 1.);
                 let j = 1. - j;
 
-                let sample = ray_color(&world, &camera.get_ray(i, j));
+                let sample = ray_color(&world, &camera.get_ray(i, j), MAX_RECURSION, &mut rng);
                 color[0] += sample.r as u32;
                 color[1] += sample.g as u32;
                 color[2] += sample.b as u32;
@@ -71,12 +72,17 @@ fn main() {
     }
 }
 
-fn ray_color(world: &HitList, ray: &Ray) -> Rgb {
-    if let Some(mut t) = world.hit(ray, &(0.0..std::f64::INFINITY)) {
-        t.normal *= 0.5;
-        t.normal += Vec3::new(0.5, 0.5, 0.5);
-        return Rgb::f64(t.normal.x, t.normal.y, t.normal.z);
+fn ray_color(world: &HitList, ray: &Ray, max_depth: u32, rng: &mut impl Rng) -> Rgb {
+    if max_depth == 0 {
+        return Rgb::f64(0., 0., 0.);
     }
+
+    if let Some(t) = world.hit(ray, &(0.0..std::f64::INFINITY)) {
+        let target = t.point + t.normal + Vec3::rand_unit_ball(rng);
+        return 0.5 *
+            ray_color(world, &Ray::new(t.point, target - t.point), MAX_RECURSION - 1, rng);
+    }
+
     let unit_dir = Vec3::normalized(ray.dir);
     let t = 0.5 * (unit_dir.y + 1.);
     (1. - t) * Rgb::f64(1., 1., 1.) + t * Rgb::f64(0.5, 0.7, 1.)

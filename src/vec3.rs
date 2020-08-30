@@ -1,4 +1,6 @@
 use std::ops;
+use rand::Rng;
+use rand_distr::{Distribution, UnitBall};
 
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct Vec3 {
@@ -23,6 +25,11 @@ impl Vec3 {
     /// ```
     pub fn normalized(v: Vec3) -> Self {
         v / v.norm()
+    }
+
+    pub fn rand_unit_ball(rng: &mut impl Rng) -> Self {
+        let ret = UnitBall.sample(rng);
+        Self::new(ret[0], ret[1], ret[2])
     }
 
     pub fn norm(&self) -> f64 {
