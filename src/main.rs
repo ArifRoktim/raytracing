@@ -1,6 +1,5 @@
 use minifb::{Key, Window, WindowOptions};
-use rand::rngs::SmallRng;
-use rand::{Rng, SeedableRng};
+use rand::{Rng, thread_rng};
 use raytracing::shape::Sphere;
 use raytracing::{Camera, HitList, Hittable, Ray, Rgb, Screen, Vec3};
 use std::f64;
@@ -20,7 +19,7 @@ const SAMPLES_PER_PIXEL: u16 = 100;
 const MAX_RAY_BOUNCES: u32 = 50;
 
 fn main() {
-    let mut rng = SmallRng::from_entropy();
+    let mut rng = thread_rng();
 
     let width = DIM[0];
     let height = DIM[1];
@@ -51,7 +50,7 @@ fn main() {
                 let j = (y as f64 + rand_j) / (height as f64 - 1.);
                 let j = 1. - j;
 
-                let sample = ray_color(&world, &camera.get_ray(i, j), MAX_RAY_BOUNCES, &mut rng);
+                let sample = ray_color(&world, &camera.get_ray(i, j), MAX_RAY_BOUNCES);
                 color[0] += sample.r as u32;
                 color[1] += sample.g as u32;
                 color[2] += sample.b as u32;
@@ -75,7 +74,7 @@ fn main() {
 
 /// Iterative version of the diffuse ray calculation.
 /// Used because the recursive method blew the stack every time.
-fn ray_color(world: &HitList, ray: &Ray, mut bounces: u32, rng: &mut impl Rng) -> Rgb {
+fn ray_color(world: &HitList, ray: &Ray, mut bounces: u32) -> Rgb {
     // Calculate color of the sky
     let unit_dir = Vec3::normalized(ray.dir);
     let t = 0.5 * (unit_dir.y + 1.);
@@ -92,7 +91,7 @@ fn ray_color(world: &HitList, ray: &Ray, mut bounces: u32, rng: &mut impl Rng) -
         }
 
         // Reflect light diffusely
-        let target = hit.point + hit.normal + Vec3::rand_unit_ball(rng);
+        let target = hit.point + hit.normal + Vec3::rand_unit_ball();
         ray = Ray::new(hit.point, target - hit.point);
     }
 
