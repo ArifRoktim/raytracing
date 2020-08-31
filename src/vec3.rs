@@ -1,6 +1,6 @@
-use std::ops;
 use rand::Rng;
-use rand_distr::{Distribution, UnitBall};
+use rand_distr::Distribution;
+use std::ops;
 
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct Vec3 {
@@ -28,7 +28,12 @@ impl Vec3 {
     }
 
     pub fn rand_unit_ball(rng: &mut impl Rng) -> Self {
-        let ret = UnitBall.sample(rng);
+        // // Version A: Samples random point in volume of sphere
+        // let ret = rand_distr::UnitBall.sample(rng);
+        // Self::new(ret[0], ret[1], ret[2])
+
+        // Version B: Samples random point on surface of sphere
+        let ret = rand_distr::UnitSphere.sample(rng);
         Self::new(ret[0], ret[1], ret[2])
     }
 

@@ -15,8 +15,9 @@ const RESOLUTIONS: &[[usize; 2]] = &[
     [1920, 1080], // 5
 ];
 const DIM: [usize; 2] = RESOLUTIONS[2];
+/// Number of samples for antialiasing
 const SAMPLES_PER_PIXEL: u16 = 100;
-const MAX_RECURSION: u32 = 2;
+const MAX_RAY_BOUNCES: u32 = 50;
 
 fn main() {
     let mut rng = SmallRng::from_entropy();
@@ -31,7 +32,7 @@ fn main() {
 
     let mut screen = Screen::new(width, height);
     for (y, row) in screen.rows_mut().enumerate() {
-        if (height - y - 1) % 100 == 0 {
+        if (height - y - 1) % 50 == 0 {
             print!("\rScanlines remaining: {:<3}", height - y - 1);
             io::stdout().flush().unwrap();
         }
@@ -50,7 +51,7 @@ fn main() {
                 let j = (y as f64 + rand_j) / (height as f64 - 1.);
                 let j = 1. - j;
 
-                let sample = ray_color(&world, &camera.get_ray(i, j), MAX_RECURSION, &mut rng);
+                let sample = ray_color(&world, &camera.get_ray(i, j), MAX_RAY_BOUNCES, &mut rng);
                 color[0] += sample.r as u32;
                 color[1] += sample.g as u32;
                 color[2] += sample.b as u32;
@@ -67,23 +68,33 @@ fn main() {
     let mut window = Window::new("Raytracing", width, height, WindowOptions::default()).unwrap();
     while window.is_open() && !window.is_key_down(Key::Escape) {
         window
-            .update_with_buffer(&screen.encode(), screen.width, screen.height)
+            .update_with_buffer(&screen.encode(true), screen.width, screen.height)
             .unwrap();
     }
 }
 
-fn ray_color(world: &HitList, ray: &Ray, max_depth: u32, rng: &mut impl Rng) -> Rgb {
-    if max_depth == 0 {
-        return Rgb::f64(0., 0., 0.);
-    }
-
-    if let Some(t) = world.hit(ray, &(0.0..std::f64::INFINITY)) {
-        let target = t.point + t.normal + Vec3::rand_unit_ball(rng);
-        return 0.5 *
-            ray_color(world, &Ray::new(t.point, target - t.point), MAX_RECURSION - 1, rng);
-    }
-
+/// Iterative version of the diffuse ray calculation.
+/// Used because the recursive method blew the stack every time.
+fn ray_color(world: &HitList, ray: &Ray, mut bounces: u32, rng: &mut impl Rng) -> Rgb {
+    // Calculate color of the sky
     let unit_dir = Vec3::normalized(ray.dir);
     let t = 0.5 * (unit_dir.y + 1.);
-    (1. - t) * Rgb::f64(1., 1., 1.) + t * Rgb::f64(0.5, 0.7, 1.)
+    let mut color = (1. - t) * Rgb::f64(1., 1., 1.) + t * Rgb::f64(0.5, 0.7, 1.);
+    let mut ray = ray.clone();
+
+    // NOTE: Tweak the beginning of the range to deal with shadow acne.
+    while let Some(hit) = world.hit(&ray, &(0.001..f64::INFINITY)) {
+        // Diffuse material absorbs 50% of light.
+        color *= 0.5;
+        bounces -= 1;
+        if bounces == 0 {
+            break;
+        }
+
+        // Reflect light diffusely
+        let target = hit.point + hit.normal + Vec3::rand_unit_ball(rng);
+        ray = Ray::new(hit.point, target - hit.point);
+    }
+
+    color
 }

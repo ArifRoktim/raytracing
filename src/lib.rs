@@ -24,12 +24,19 @@ impl Screen {
         }
     }
 
-    /// Encodes each Pixel into `0RGB`
-    pub fn encode(&self) -> Box<[u32]> {
+    /// Encodes each Pixel into `0RGB` and optionally applies gamma correction
+    pub fn encode(&self, gamma2: bool) -> Box<[u32]> {
         self.buffer
             .iter()
             .map(|p| {
-                let (r, g, b) = (p.r as u32, p.g as u32, p.b as u32);
+                let (r, g, b) = if gamma2 {
+                    let (r, g, b) = (p.r as f64 / 255., p.g as f64 / 255., p.b as f64 / 255.);
+                    let (r, g, b) = (r.sqrt() * 255., g.sqrt() * 255., b.sqrt() * 255.);
+                    (r as u32, g as u32, b as u32)
+                } else {
+                    (p.r as u32, p.g as u32, p.b as u32)
+                };
+
                 (r << 16) | (g << 8) | b
             })
             .collect()

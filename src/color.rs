@@ -47,3 +47,10 @@ impl ops::Mul<Rgb> for f64 {
         rhs * self
     }
 }
+impl ops::MulAssign<f64> for Rgb {
+    fn mul_assign(&mut self, rhs: f64) {
+        self.r = (self.r as f64 * rhs) as u8;
+        self.g = (self.g as f64 * rhs) as u8;
+        self.b = (self.b as f64 * rhs) as u8;
+    }
+}
