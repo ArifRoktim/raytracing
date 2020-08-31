@@ -21,7 +21,6 @@ impl Rgb {
         }
     }
 }
-
 impl ops::Add for Rgb {
     type Output = Self;
 
@@ -52,5 +51,56 @@ impl ops::MulAssign<f64> for Rgb {
         self.r = (self.r as f64 * rhs) as u8;
         self.g = (self.g as f64 * rhs) as u8;
         self.b = (self.b as f64 * rhs) as u8;
+    }
+}
+impl ops::Mul<Albedo> for Rgb {
+    type Output = Self;
+
+    fn mul(self, rhs: Albedo) -> Self::Output {
+        Self::new(
+            (self.r as f64 * rhs.r) as u8,
+            (self.g as f64 * rhs.g) as u8,
+            (self.b as f64 * rhs.b) as u8,
+        )
+    }
+}
+impl ops::MulAssign<Albedo> for Rgb {
+    fn mul_assign(&mut self, rhs: Albedo) {
+        self.r = (self.r as f64 * rhs.r) as u8;
+        self.g = (self.g as f64 * rhs.g) as u8;
+        self.b = (self.b as f64 * rhs.b) as u8;
+    }
+}
+
+#[derive(Clone)]
+pub struct Albedo {
+    pub r: f64,
+    pub g: f64,
+    pub b: f64,
+}
+impl Albedo {
+    pub fn new(r: f64, g: f64, b: f64) -> Self {
+        Self { r, g, b }
+    }
+}
+impl ops::Mul for Albedo {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        Self::new(self.r * rhs.r, self.g * rhs.g, self.b * rhs.b)
+    }
+}
+impl ops::Mul<f64> for Albedo {
+    type Output = Self;
+
+    fn mul(self, rhs: f64) -> Self::Output {
+        Self::new(self.r * rhs, self.g * rhs, self.b * rhs)
+    }
+}
+impl ops::Mul<Rgb> for Albedo {
+    type Output = Rgb;
+
+    fn mul(self, rhs: Rgb) -> Self::Output {
+        rhs * self
     }
 }

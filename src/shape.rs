@@ -1,31 +1,45 @@
-use crate::{Ray, Vec3};
+use crate::{Material, Ray, Vec3};
 use std::ops::Range;
 
-pub struct Hit {
+pub struct Hit<'a> {
     pub point: Vec3,
     /// A unit normal vector
     pub normal: Vec3,
     pub t: f64,
     pub front_face: bool,
+    pub material: &'a dyn Material,
 }
-impl Hit {
-    pub fn new(point: Vec3, normal: Vec3, t: f64, front_face: bool) -> Self {
+impl<'a> Hit<'a> {
+    pub fn new(
+        point: Vec3,
+        normal: Vec3,
+        t: f64,
+        front_face: bool,
+        material: &'a dyn Material,
+    ) -> Self {
         Self {
             point,
             normal,
             t,
             front_face,
+            material,
         }
     }
 
-    pub fn ray(point: Vec3, mut normal: Vec3, t: f64, ray: &Ray) -> Self {
+    pub fn ray(
+        point: Vec3,
+        mut normal: Vec3,
+        t: f64,
+        ray: &Ray,
+        material: &'a dyn Material,
+    ) -> Self {
         // Dot product is negative when ray hits back face
         let front_face = ray.dir.dot(normal) < 0.;
         // Make suface normal always point against incident ray
         if !front_face {
             normal *= -1.;
         }
-        Self::new(point, normal, t, front_face)
+        Self::new(point, normal, t, front_face, material)
     }
 }
 
@@ -60,19 +74,24 @@ impl Hittable for HitList {
     }
 }
 
-pub struct Sphere {
+pub struct Sphere<T> {
     pub center: Vec3,
     pub radius: f64,
+    pub material: T,
 }
-impl Sphere {
-    pub fn new(center: Vec3, radius: f64) -> Self {
-        Self { center, radius }
+impl<T: Material> Sphere<T> {
+    pub fn new(center: Vec3, radius: f64, material: T) -> Self {
+        Self {
+            center,
+            radius,
+            material,
+        }
     }
-    pub fn from(c: [f64; 3], radius: f64) -> Self {
-        Self::new(Vec3::new(c[0], c[1], c[2]), radius)
+    pub fn from(c: [f64; 3], radius: f64, material: T) -> Self {
+        Self::new(Vec3::new(c[0], c[1], c[2]), radius, material)
     }
 }
-impl Hittable for Sphere {
+impl<T: Material> Hittable for Sphere<T> {
     fn hit(&self, ray: &Ray, range: &Range<f64>) -> Option<Hit> {
         let oc = ray.origin - self.center;
         let a = ray.dir.norm_squared();
@@ -85,7 +104,7 @@ impl Hittable for Sphere {
             let hit = |t| {
                 let point = ray.at(t);
                 let outward_normal = (point - self.center) / self.radius;
-                Some(Hit::ray(point, outward_normal, t, ray))
+                Some(Hit::ray(point, outward_normal, t, ray, &self.material))
             };
 
             let t = (-half_b - root) / a;

@@ -1,10 +1,10 @@
 pub mod color;
-pub mod ray;
+pub mod material;
 pub mod shape;
 pub mod vec3;
 
-pub use color::Rgb;
-pub use ray::Ray;
+pub use color::{Albedo, Rgb};
+pub use material::{Material, Scatter};
 pub use shape::{Hit, HitList, Hittable};
 pub use vec3::Vec3;
 
@@ -14,7 +14,6 @@ pub struct Screen {
     /// Flat buffer of 24-bit pixels with length of `width * height`
     pub buffer: Box<[Rgb]>,
 }
-
 impl Screen {
     pub fn new(width: usize, height: usize) -> Self {
         Self {
@@ -78,5 +77,20 @@ impl Default for Camera {
         let vert = Vec3::new(0., horiz.x / 16. * 9., 0.);
         let lower_left_corner = Vec3::ORIGIN - horiz / 2. - vert / 2. - Vec3::new(0., 0., 1.);
         Self::new(Vec3::ORIGIN, horiz, vert, lower_left_corner)
+    }
+}
+
+#[derive(Clone)]
+pub struct Ray {
+    pub origin: Vec3,
+    pub dir: Vec3,
+}
+impl Ray {
+    pub fn new(orig: Vec3, dir: Vec3) -> Self {
+        Self { origin: orig, dir }
+    }
+
+    pub fn at(&self, t: f64) -> Vec3 {
+        self.origin + t * self.dir
     }
 }

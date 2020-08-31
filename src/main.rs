@@ -1,5 +1,6 @@
 use minifb::{Key, Window, WindowOptions};
-use rand::{Rng, thread_rng};
+use rand::{thread_rng, Rng};
+use raytracing::material::Lambertian;
 use raytracing::shape::Sphere;
 use raytracing::{Camera, HitList, Hittable, Ray, Rgb, Screen, Vec3};
 use std::f64;
@@ -26,8 +27,12 @@ fn main() {
     let camera = Camera::default();
 
     let mut world = HitList::new();
-    world.push(Sphere::from([0., 0., -1.], 0.5));
-    world.push(Sphere::from([0., -100.5, -1.], 100.));
+    world.push(Sphere::from([0., 0., -1.], 0.5, Lambertian::from([0.5; 3])));
+    world.push(Sphere::from(
+        [0., -100.5, -1.],
+        100.,
+        Lambertian::from([0.5; 3]),
+    ));
 
     let mut screen = Screen::new(width, height);
     for (y, row) in screen.rows_mut().enumerate() {
@@ -75,6 +80,7 @@ fn main() {
 /// Iterative version of the diffuse ray calculation.
 /// Used because the recursive method blew the stack every time.
 fn ray_color(world: &HitList, ray: &Ray, mut bounces: u32) -> Rgb {
+    // FIXME: Sky should be calculated with last ray after the while loop
     // Calculate color of the sky
     let unit_dir = Vec3::normalized(ray.dir);
     let t = 0.5 * (unit_dir.y + 1.);
@@ -83,16 +89,19 @@ fn ray_color(world: &HitList, ray: &Ray, mut bounces: u32) -> Rgb {
 
     // NOTE: Tweak the beginning of the range to deal with shadow acne.
     while let Some(hit) = world.hit(&ray, &(0.001..f64::INFINITY)) {
-        // Diffuse material absorbs 50% of light.
-        color *= 0.5;
+        if let Some(scatter) = hit.material.scatter(&ray, &hit) {
+            color *= scatter.albedo;
+            ray = scatter.ray;
+        } else {
+            // Ray got absorbed so no light is reflected.
+            color *= 0.;
+            break;
+        }
+
         bounces -= 1;
         if bounces == 0 {
             break;
         }
-
-        // Reflect light diffusely
-        let target = hit.point + hit.normal + Vec3::rand_unit_ball();
-        ray = Ray::new(hit.point, target - hit.point);
     }
 
     color
