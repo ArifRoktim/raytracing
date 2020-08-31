@@ -8,7 +8,6 @@ pub struct Vec3 {
     pub y: f64,
     pub z: f64,
 }
-
 impl Vec3 {
     pub const ORIGIN: Self = Self::new(0., 0., 0.);
 
@@ -69,6 +68,12 @@ impl Vec3 {
             y: self.z * rhs.x - self.x * rhs.z,
             z: self.x * rhs.y - self.y * rhs.x,
         }
+    }
+}
+
+impl From<[f64; 3]> for Vec3 {
+    fn from(v: [f64; 3]) -> Self {
+        Self::new(v[0], v[1], v[2])
     }
 }
 

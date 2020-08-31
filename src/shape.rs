@@ -88,7 +88,7 @@ impl<T: Material> Sphere<T> {
         }
     }
     pub fn from(c: [f64; 3], radius: f64, material: T) -> Self {
-        Self::new(Vec3::new(c[0], c[1], c[2]), radius, material)
+        Self::new(c.into(), radius, material)
     }
 }
 impl<T: Material> Hittable for Sphere<T> {

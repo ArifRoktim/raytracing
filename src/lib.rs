@@ -86,8 +86,12 @@ pub struct Ray {
     pub dir: Vec3,
 }
 impl Ray {
-    pub fn new(orig: Vec3, dir: Vec3) -> Self {
-        Self { origin: orig, dir }
+    pub fn new(origin: Vec3, dir: Vec3) -> Self {
+        Self { origin, dir }
+    }
+
+    pub fn from<T: Into<Vec3>, U: Into<Vec3>>(origin: T, dir: U) -> Self {
+        Self::new(origin.into(), dir.into())
     }
 
     pub fn at(&self, t: f64) -> Vec3 {

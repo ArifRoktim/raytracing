@@ -21,6 +21,12 @@ impl Rgb {
         }
     }
 }
+impl From<[u8; 3]> for Rgb {
+    fn from(c: [u8; 3]) -> Self {
+        Self::new(c[0], c[1], c[2])
+    }
+}
+
 impl ops::Add for Rgb {
     type Output = Self;
 
@@ -28,6 +34,7 @@ impl ops::Add for Rgb {
         Self::new(self.r + rhs.r, self.g + rhs.g, self.b + rhs.b)
     }
 }
+
 impl ops::Mul<f64> for Rgb {
     type Output = Self;
 
@@ -53,6 +60,7 @@ impl ops::MulAssign<f64> for Rgb {
         self.b = (self.b as f64 * rhs) as u8;
     }
 }
+
 impl ops::Mul<Albedo> for Rgb {
     type Output = Self;
 
@@ -83,6 +91,12 @@ impl Albedo {
         Self { r, g, b }
     }
 }
+impl From<[f64; 3]> for Albedo {
+    fn from(a: [f64; 3]) -> Self {
+        Self::new(a[0], a[1], a[2])
+    }
+}
+
 impl ops::Mul for Albedo {
     type Output = Self;
 
