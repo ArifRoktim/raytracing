@@ -24,32 +24,46 @@ fn main() {
 
     let width = DIM[0];
     let height = DIM[1];
-    let camera = Camera::default();
+    // let camera = Camera::width_height(90., width, height);
+    let camera = Camera::from(
+        [-2., 1.5, 1.],
+        [-0.2, 0., -1.2],
+        [0., 1., 0.,],
+        40.,
+        width as f64 / height as f64,
+    );
 
     let mut world = HitList::new();
-    world.push(Sphere::from(
-        // [-1.2, 0., -1.],
-        [0., 0., -1.],
-        0.5,
-        // Dielectric::new(1.5),
-        Lambertian::from([0.1, 0.2, 0.5]),
-    ));
     world.push(Sphere::from(
         [0., -100.5, -1.],
         100.,
         Lambertian::from([0.8, 0.8, 0.]),
     ));
     world.push(Sphere::from(
-        // [1.1, 0., -1.],
-        [1.0, 0., -1.],
+        [0., 0., -1.],
+        0.5,
+        Dielectric::new(1.5),
+    ));
+    world.push(Sphere::from(
+        [1.5, 0., -1.],
         0.5,
         Metal::from([0.8, 0.6, 0.2], 0.),
     ));
     world.push(Sphere::from(
-        // [0., 0., -1.],
-        [-1., 0., -1.],
+        [-1.05, 0., -1.],
         0.5,
-        Dielectric::new(1.5),
+        Lambertian::from([0.1, 0.2, 0.5]),
+    ));
+
+    world.push(Sphere::from(
+        [1.5, 0., -2.5],
+        0.5,
+        Metal::from([0.8, 0.6, 0.2], 0.),
+    ));
+    world.push(Sphere::from(
+        [-1.05, 0., -2.5],
+        0.5,
+        Lambertian::from([0.1, 0.2, 0.5]),
     ));
 
     let mut screen = Screen::new(width, height);

@@ -46,7 +46,6 @@ impl Screen {
     }
 }
 
-/// Camera assumes an aspect ratio of 16:9
 pub struct Camera {
     pub origin: Vec3,
     pub horiz: Vec3,
@@ -54,19 +53,54 @@ pub struct Camera {
     pub lower_left_corner: Vec3,
 }
 impl Camera {
-    fn new(origin: Vec3, horiz: Vec3, vert: Vec3, bot_left_corner: Vec3) -> Self {
+    fn new(origin: Vec3, horiz: Vec3, vert: Vec3, lower_left_corner: Vec3) -> Self {
         Self {
             origin,
             horiz,
             vert,
-            lower_left_corner: bot_left_corner,
+            lower_left_corner,
         }
+    }
+
+    pub fn create(
+        look_from: Vec3,
+        look_at: Vec3,
+        view_up: Vec3,
+        vfov_degrees: f64,
+        aspect_ratio: f64,
+    ) -> Self {
+        let theta = vfov_degrees.to_radians() / 2.;
+        let half_height = theta.tan();
+        let half_width = aspect_ratio * half_height;
+
+        // Project view_up onto the plane of the camera
+        let w = Vec3::normalized(look_from - look_at);
+        let u = Vec3::normalized(view_up.cross(w));
+        let v = w.cross(u);
+
+        let lower_left = look_from - u * half_width - v * half_height - w;
+        let horiz = 2. * u * half_width;
+        let vert = 2. * v * half_height;
+        Self::new(look_from, horiz, vert, lower_left)
+    }
+
+    pub fn from<T: Into<Vec3>>(
+        look_from: T,
+        look_at: T,
+        view_up: T,
+        vfov_degrees: f64,
+        aspect_ratio: f64,
+    ) -> Self {
+        let look_from = look_from.into();
+        let look_at = look_at.into();
+        let view_up = view_up.into();
+        Self::create(look_from, look_at, view_up, vfov_degrees, aspect_ratio)
     }
 
     pub fn get_ray(&self, i: f64, j: f64) -> Ray {
         Ray::new(
             self.origin,
-            self.lower_left_corner + i * self.horiz + j * self.vert,
+            self.lower_left_corner + i * self.horiz + j * self.vert - self.origin,
         )
     }
 }
