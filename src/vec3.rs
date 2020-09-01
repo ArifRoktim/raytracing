@@ -69,6 +69,13 @@ impl Vec3 {
         let unit_dir = Vec3::normalized(*self);
         unit_dir - 2. * unit_dir.dot(normal) * normal
     }
+
+    pub fn refract(&self, normal: Vec3, eta_i_over_eta_t: f64) -> Self {
+        let cos_theta = (-*self).dot(normal);
+        let refract_parallel = eta_i_over_eta_t * (*self + cos_theta * normal);
+        let refract_perp = -normal * (1. - refract_parallel.norm_squared()).sqrt();
+        refract_parallel + refract_perp
+    }
 }
 
 impl From<[f64; 3]> for Vec3 {

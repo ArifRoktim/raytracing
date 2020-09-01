@@ -1,6 +1,6 @@
 use minifb::{Key, Window, WindowOptions};
 use rand::{thread_rng, Rng};
-use raytracing::material::{Lambertian, Metal};
+use raytracing::material::{Dielectric, Lambertian, Metal};
 use raytracing::shape::Sphere;
 use raytracing::{Albedo, Camera, HitList, Hittable, Ray, Rgb, Screen, Vec3};
 use std::f64;
@@ -15,7 +15,7 @@ const RESOLUTIONS: &[[usize; 2]] = &[
     [1920, 1080], // 5
 ];
 const DIM: [usize; 2] = RESOLUTIONS[2];
-/// Number of samples for antialiasing
+const ANTIALIASING: bool = true;
 const SAMPLES_PER_PIXEL: u16 = 100;
 const MAX_RAY_BOUNCES: u32 = 100;
 
@@ -28,9 +28,11 @@ fn main() {
 
     let mut world = HitList::new();
     world.push(Sphere::from(
+        // [-1.2, 0., -1.],
         [0., 0., -1.],
         0.5,
-        Lambertian::from([0.7, 0.3, 0.3]),
+        // Dielectric::new(1.5),
+        Lambertian::from([0.1, 0.2, 0.5]),
     ));
     world.push(Sphere::from(
         [0., -100.5, -1.],
@@ -38,14 +40,16 @@ fn main() {
         Lambertian::from([0.8, 0.8, 0.]),
     ));
     world.push(Sphere::from(
-        [1., 0., -1.],
+        // [1.1, 0., -1.],
+        [1.0, 0., -1.],
         0.5,
-        Metal::from([0.8, 0.6, 0.2], 1.),
+        Metal::from([0.8, 0.6, 0.2], 0.),
     ));
     world.push(Sphere::from(
+        // [0., 0., -1.],
         [-1., 0., -1.],
         0.5,
-        Metal::from([0.8, 0.8, 0.8], 0.3),
+        Dielectric::new(1.5),
     ));
 
     let mut screen = Screen::new(width, height);
@@ -58,8 +62,7 @@ fn main() {
         for (x, pix) in row.iter_mut().enumerate() {
             let mut color = [0u32; 3];
             for _ in 0..SAMPLES_PER_PIXEL {
-                // Don't do antialiasing when only using 1 sample
-                let (rand_i, rand_j): (f64, f64) = if SAMPLES_PER_PIXEL == 1 {
+                let (rand_i, rand_j): (f64, f64) = if !ANTIALIASING {
                     (0., 0.)
                 } else {
                     (rng.gen(), rng.gen())
@@ -84,11 +87,14 @@ fn main() {
     println!("\nDone!");
 
     let mut window = Window::new("Raytracing", width, height, WindowOptions::default()).unwrap();
-    window.limit_update_rate(Some(std::time::Duration::from_millis(100)));
-    while window.is_open() && !window.is_key_down(Key::Escape) {
+    window.limit_update_rate(Some(std::time::Duration::from_millis(17)));
+    if window.is_open() {
         window
             .update_with_buffer(&screen.encode(true), screen.width, screen.height)
             .unwrap();
+    }
+    while window.is_open() && !window.is_key_down(Key::Escape) {
+        window.update();
     }
 }
 

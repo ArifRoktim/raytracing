@@ -69,3 +69,42 @@ impl Material for Metal {
         }
     }
 }
+
+pub struct Dielectric {
+    pub ref_index: f64,
+}
+impl Dielectric {
+    pub fn new(ref_index: f64) -> Self {
+        Self { ref_index }
+    }
+
+    pub fn schlick(cos: f64, eta_i_over_eta_t: f64) -> f64 {
+        let r0 = (1. - eta_i_over_eta_t) / (1. + eta_i_over_eta_t);
+        let r0 = r0 * r0;
+        r0 + (1. - r0) * (1. - cos).powi(5)
+    }
+}
+impl Material for Dielectric {
+    fn scatter(&self, ray: &Ray, hit: &Hit) -> Option<Scatter> {
+        let eta_i_over_eta_t = if hit.front_face {
+            1. / self.ref_index
+        } else {
+            self.ref_index
+        };
+        let unit_dir = Vec3::normalized(ray.dir);
+        let cos_theta = (-unit_dir).dot(hit.normal).min(1.0);
+        let sin_theta = (1. - cos_theta.powi(2)).sqrt();
+
+        let scattered = if eta_i_over_eta_t * sin_theta > 1.0
+            || rand::random::<f64>() < Self::schlick(cos_theta, eta_i_over_eta_t)
+        {
+            let reflected = unit_dir.reflect(hit.normal);
+            Ray::new(hit.point, reflected)
+        } else {
+            let refracted = unit_dir.refract(hit.normal, eta_i_over_eta_t);
+            Ray::new(hit.point, refracted)
+        };
+
+        Some(Scatter::new(Albedo::default(), scattered))
+    }
+}
