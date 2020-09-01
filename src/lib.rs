@@ -46,7 +46,6 @@ impl Screen {
     }
 }
 
-/// # Note
 /// Camera assumes an aspect ratio of 16:9
 pub struct Camera {
     pub origin: Vec3,

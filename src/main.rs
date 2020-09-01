@@ -2,7 +2,7 @@ use minifb::{Key, Window, WindowOptions};
 use rand::{thread_rng, Rng};
 use raytracing::material::{Lambertian, Metal};
 use raytracing::shape::Sphere;
-use raytracing::{Camera, HitList, Hittable, Ray, Rgb, Screen, Vec3};
+use raytracing::{Albedo, Camera, HitList, Hittable, Ray, Rgb, Screen, Vec3};
 use std::f64;
 use std::io::{self, Write};
 
@@ -17,7 +17,7 @@ const RESOLUTIONS: &[[usize; 2]] = &[
 const DIM: [usize; 2] = RESOLUTIONS[2];
 /// Number of samples for antialiasing
 const SAMPLES_PER_PIXEL: u16 = 100;
-const MAX_RAY_BOUNCES: u32 = 50;
+const MAX_RAY_BOUNCES: u32 = 100;
 
 fn main() {
     let mut rng = thread_rng();
@@ -95,11 +95,7 @@ fn main() {
 /// Iterative version of the diffuse ray calculation.
 /// Used because the recursive method blew the stack every time.
 fn ray_color(world: &HitList, ray: &Ray, mut bounces: u32) -> Rgb {
-    // FIXME: Sky should be calculated with last ray after the while loop
-    // Calculate color of the sky
-    let unit_dir = Vec3::normalized(ray.dir);
-    let t = 0.5 * (unit_dir.y + 1.);
-    let mut color = (1. - t) * Rgb::f64(1., 1., 1.) + t * Rgb::f64(0.5, 0.7, 1.);
+    let mut color = Albedo::default();
     let mut ray = ray.clone();
 
     // NOTE: Tweak the beginning of the range to deal with shadow acne.
@@ -119,5 +115,10 @@ fn ray_color(world: &HitList, ray: &Ray, mut bounces: u32) -> Rgb {
         }
     }
 
-    color
+    // Calculate color of the sky
+    let unit_dir = Vec3::normalized(ray.dir);
+    let t = 0.5 * (unit_dir.y + 1.);
+    let sky = (1. - t) * Rgb::f64(1., 1., 1.) + t * Rgb::f64(0.5, 0.7, 1.);
+
+    sky * color
 }

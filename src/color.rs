@@ -96,6 +96,11 @@ impl From<[f64; 3]> for Albedo {
         Self::new(a[0], a[1], a[2])
     }
 }
+impl Default for Albedo {
+    fn default() -> Self {
+        Self::new(1., 1., 1.)
+    }
+}
 
 impl ops::Mul for Albedo {
     type Output = Self;
@@ -104,11 +109,32 @@ impl ops::Mul for Albedo {
         Self::new(self.r * rhs.r, self.g * rhs.g, self.b * rhs.b)
     }
 }
+impl ops::MulAssign for Albedo {
+    fn mul_assign(&mut self, rhs: Self) {
+        self.r *= rhs.r;
+        self.g *= rhs.g;
+        self.b *= rhs.b;
+    }
+}
 impl ops::Mul<f64> for Albedo {
     type Output = Self;
 
     fn mul(self, rhs: f64) -> Self::Output {
         Self::new(self.r * rhs, self.g * rhs, self.b * rhs)
+    }
+}
+impl ops::Mul<Albedo> for f64 {
+    type Output = Albedo;
+
+    fn mul(self, rhs: Albedo) -> Self::Output {
+        rhs * self
+    }
+}
+impl ops::MulAssign<f64> for Albedo {
+    fn mul_assign(&mut self, rhs: f64) {
+        self.r *= rhs;
+        self.g *= rhs;
+        self.b *= rhs;
     }
 }
 impl ops::Mul<Rgb> for Albedo {
