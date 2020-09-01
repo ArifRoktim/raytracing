@@ -26,12 +26,7 @@ impl Vec3 {
         v / v.norm()
     }
 
-    pub fn rand_unit_ball() -> Self {
-        // // Version A: Samples random point in volume of sphere
-        // let ret = rand_distr::UnitBall.sample(&mut thread_rng());
-        // Self::new(ret[0], ret[1], ret[2])
-
-        // Version B: Samples random point on surface of sphere
+    pub fn rand_unit_sphere() -> Self {
         let ret = rand_distr::UnitSphere.sample(&mut thread_rng());
         Self::new(ret[0], ret[1], ret[2])
     }
@@ -68,6 +63,11 @@ impl Vec3 {
             y: self.z * rhs.x - self.x * rhs.z,
             z: self.x * rhs.y - self.y * rhs.x,
         }
+    }
+
+    pub fn reflect(&self, normal: Vec3) -> Self {
+        let unit_dir = Vec3::normalized(*self);
+        unit_dir - 2. * unit_dir.dot(normal) * normal
     }
 }
 

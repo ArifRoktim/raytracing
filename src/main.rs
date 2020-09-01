@@ -1,6 +1,6 @@
 use minifb::{Key, Window, WindowOptions};
 use rand::{thread_rng, Rng};
-use raytracing::material::Lambertian;
+use raytracing::material::{Lambertian, Metal};
 use raytracing::shape::Sphere;
 use raytracing::{Camera, HitList, Hittable, Ray, Rgb, Screen, Vec3};
 use std::f64;
@@ -27,11 +27,25 @@ fn main() {
     let camera = Camera::default();
 
     let mut world = HitList::new();
-    world.push(Sphere::from([0., 0., -1.], 0.5, Lambertian::from([0.5; 3])));
+    world.push(Sphere::from(
+        [0., 0., -1.],
+        0.5,
+        Lambertian::from([0.7, 0.3, 0.3]),
+    ));
     world.push(Sphere::from(
         [0., -100.5, -1.],
         100.,
-        Lambertian::from([0.5; 3]),
+        Lambertian::from([0.8, 0.8, 0.]),
+    ));
+    world.push(Sphere::from(
+        [1., 0., -1.],
+        0.5,
+        Metal::from([0.8, 0.6, 0.2], 1.),
+    ));
+    world.push(Sphere::from(
+        [-1., 0., -1.],
+        0.5,
+        Metal::from([0.8, 0.8, 0.8], 0.3),
     ));
 
     let mut screen = Screen::new(width, height);
@@ -70,6 +84,7 @@ fn main() {
     println!("\nDone!");
 
     let mut window = Window::new("Raytracing", width, height, WindowOptions::default()).unwrap();
+    window.limit_update_rate(Some(std::time::Duration::from_millis(100)));
     while window.is_open() && !window.is_key_down(Key::Escape) {
         window
             .update_with_buffer(&screen.encode(true), screen.width, screen.height)
