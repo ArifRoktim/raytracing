@@ -31,6 +31,11 @@ impl Vec3 {
         Self::new(ret[0], ret[1], ret[2])
     }
 
+    pub fn rand_unit_disk() -> Self {
+        let ret = rand_distr::UnitDisc.sample(&mut thread_rng());
+        Self::new(ret[0], ret[1], 0.)
+    }
+
     pub fn norm(&self) -> f64 {
         self.norm_squared().sqrt()
     }

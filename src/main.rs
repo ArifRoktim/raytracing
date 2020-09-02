@@ -5,7 +5,9 @@ use raytracing::shape::Sphere;
 use raytracing::{Albedo, Camera, HitList, Hittable, Ray, Rgb, Screen, Vec3};
 use std::f64;
 use std::io::{self, Write};
+use std::time::{Duration, Instant};
 
+const UPDATE_DELAY: Duration = Duration::from_millis((1. / 30. * 1000.) as u64);
 const RESOLUTIONS: &[[usize; 2]] = &[
     [384, 216],   // 0
     [640, 360],   // 1
@@ -26,11 +28,13 @@ fn main() {
     let height = DIM[1];
     // let camera = Camera::width_height(90., width, height);
     let camera = Camera::from(
-        [-2., 1.5, 1.],
-        [-0.2, 0., -1.2],
-        [0., 1., 0.,],
-        40.,
+        [3., 3., 2.],
+        [0., 0., -1.],
+        None,
+        30.,
         width as f64 / height as f64,
+        0.3,
+        None,
     );
 
     let mut world = HitList::new();
@@ -42,35 +46,23 @@ fn main() {
     world.push(Sphere::from(
         [0., 0., -1.],
         0.5,
-        Dielectric::new(1.5),
+        Lambertian::from([0.1, 0.2, 0.5]),
     ));
     world.push(Sphere::from(
-        [1.5, 0., -1.],
+        [1., 0., -1.],
         0.5,
         Metal::from([0.8, 0.6, 0.2], 0.),
     ));
-    world.push(Sphere::from(
-        [-1.05, 0., -1.],
-        0.5,
-        Lambertian::from([0.1, 0.2, 0.5]),
-    ));
-
-    world.push(Sphere::from(
-        [1.5, 0., -2.5],
-        0.5,
-        Metal::from([0.8, 0.6, 0.2], 0.),
-    ));
-    world.push(Sphere::from(
-        [-1.05, 0., -2.5],
-        0.5,
-        Lambertian::from([0.1, 0.2, 0.5]),
-    ));
+    world.push(Sphere::from([-1., 0., -1.], 0.5, Dielectric::new(1.5)));
 
     let mut screen = Screen::new(width, height);
+    let mut time = Instant::now();
     for (y, row) in screen.rows_mut().enumerate() {
-        if (height - y - 1) % 50 == 0 {
-            print!("\rScanlines remaining: {:<3}", height - y - 1);
+        if time.elapsed() > UPDATE_DELAY {
+            let percent = (height - y - 1) as f64 / height as f64 * 100.;
+            print!("\rScanlines remaining: {:>5.2}%", percent);
             io::stdout().flush().unwrap();
+            time = Instant::now();
         }
 
         for (x, pix) in row.iter_mut().enumerate() {
@@ -101,14 +93,12 @@ fn main() {
     println!("\nDone!");
 
     let mut window = Window::new("Raytracing", width, height, WindowOptions::default()).unwrap();
-    window.limit_update_rate(Some(std::time::Duration::from_millis(17)));
-    if window.is_open() {
-        window
-            .update_with_buffer(&screen.encode(true), screen.width, screen.height)
-            .unwrap();
-    }
+    window.limit_update_rate(Some(UPDATE_DELAY));
+    let buffer = screen.encode(true);
     while window.is_open() && !window.is_key_down(Key::Escape) {
-        window.update();
+        window
+            .update_with_buffer(&buffer, screen.width, screen.height)
+            .unwrap();
     }
 }
 
