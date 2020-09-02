@@ -1,3 +1,8 @@
+use rand::{
+    distributions::{Distribution, Uniform},
+    rngs::ThreadRng,
+    Rng,
+};
 use std::ops;
 
 #[derive(Copy, Clone, Debug, Default)]
@@ -89,6 +94,17 @@ pub struct Albedo {
 impl Albedo {
     pub fn new(r: f64, g: f64, b: f64) -> Self {
         Self { r, g, b }
+    }
+
+    pub fn rand(rng: &mut ThreadRng) -> Self {
+        let albedo = rng.gen::<[f64; 3]>();
+        albedo.into()
+    }
+
+    pub fn rand_range(rng: &mut ThreadRng, low: f64, high: f64) -> Self {
+        let distr = Uniform::new(low, high);
+        let albedo = [distr.sample(rng), distr.sample(rng), distr.sample(rng)];
+        albedo.into()
     }
 }
 impl From<[f64; 3]> for Albedo {

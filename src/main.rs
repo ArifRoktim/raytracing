@@ -1,5 +1,5 @@
 use minifb::{Key, Window, WindowOptions};
-use rand::{thread_rng, Rng};
+use rand::{rngs::ThreadRng, thread_rng, Rng};
 use raytracing::material::{Dielectric, Lambertian, Metal};
 use raytracing::shape::Sphere;
 use raytracing::{Albedo, Camera, HitList, Hittable, Ray, Rgb, Screen, Vec3};
@@ -26,41 +26,29 @@ fn main() {
 
     let width = DIM[0];
     let height = DIM[1];
-    // let camera = Camera::width_height(90., width, height);
     let camera = Camera::from(
-        [3., 3., 2.],
-        [0., 0., -1.],
+        [13., 2., 3.],
+        [0., 0., 0.],
         None,
-        30.,
+        20.,
         width as f64 / height as f64,
-        0.3,
-        None,
+        0.1,
+        Some(10.),
     );
-
-    let mut world = HitList::new();
-    world.push(Sphere::from(
-        [0., -100.5, -1.],
-        100.,
-        Lambertian::from([0.8, 0.8, 0.]),
-    ));
-    world.push(Sphere::from(
-        [0., 0., -1.],
-        0.5,
-        Lambertian::from([0.1, 0.2, 0.5]),
-    ));
-    world.push(Sphere::from(
-        [1., 0., -1.],
-        0.5,
-        Metal::from([0.8, 0.6, 0.2], 0.),
-    ));
-    world.push(Sphere::from([-1., 0., -1.], 0.5, Dielectric::new(1.5)));
+    let world = random_scene(&mut rng);
 
     let mut screen = Screen::new(width, height);
     let mut time = Instant::now();
     for (y, row) in screen.rows_mut().enumerate() {
         if time.elapsed() > UPDATE_DELAY {
             let percent = (height - y - 1) as f64 / height as f64 * 100.;
-            print!("\rScanlines remaining: {:>5.2}%", percent);
+            // http://ascii-table.com/ansi-escape-sequences.php
+            print!(
+                "\x1B[K\rScanlines remaining: {}/{} ({:.2}%)",
+                height - y - 1,
+                height,
+                percent
+            );
             io::stdout().flush().unwrap();
             time = Instant::now();
         }
@@ -121,6 +109,7 @@ fn ray_color(world: &HitList, ray: &Ray, mut bounces: u32) -> Rgb {
 
         bounces -= 1;
         if bounces == 0 {
+            color *= 0.;
             break;
         }
     }
@@ -131,4 +120,51 @@ fn ray_color(world: &HitList, ray: &Ray, mut bounces: u32) -> Rgb {
     let sky = (1. - t) * Rgb::f64(1., 1., 1.) + t * Rgb::f64(0.5, 0.7, 1.);
 
     sky * color
+}
+
+fn random_scene(rng: &mut ThreadRng) -> HitList {
+    let mut world = HitList::new();
+    world.push(Sphere::from(
+        [0., -1000., 0.],
+        1000.,
+        Lambertian::from([0.5; 3]),
+    ));
+
+    for a in -11..11 {
+        for b in -11..11 {
+            let (x, z) = (0.9 * rng.gen::<f64>(), 0.9 * rng.gen::<f64>());
+            let center = Vec3::new(a as f64 + x, 0.2, b as f64 + z);
+            if (center - Vec3::new(4., 0.2, 0.)).norm() <= 0.9 {
+                continue;
+            }
+            let material = rng.gen::<f64>();
+            if material < 0.8 {
+                // diffuse
+                let albedo = Albedo::rand(rng) * Albedo::rand(rng);
+                world.push(Sphere::new(center, 0.2, Lambertian::new(albedo)));
+            } else if material < 0.98 {
+                // metal
+                let albedo = Albedo::rand_range(rng, 0.5, 1.);
+                let fuzz = rng.gen_range(0., 0.5);
+                world.push(Sphere::new(center, 0.2, Metal::new(albedo, fuzz)));
+            } else {
+                // glass
+                world.push(Sphere::new(center, 0.2, Dielectric::new(1.5)));
+            }
+        }
+    }
+
+    world.push(Sphere::from([0., 1., 0.], 1., Dielectric::new(1.5)));
+    world.push(Sphere::from(
+        [-4., 1., 0.],
+        1.,
+        Lambertian::from([0.4, 0.2, 0.1]),
+    ));
+    world.push(Sphere::from(
+        [4., 1., 0.],
+        1.,
+        Metal::from([0.7, 0.6, 0.5], 0.0),
+    ));
+
+    world
 }
