@@ -2,7 +2,7 @@ use minifb::{Key, Window, WindowOptions};
 use rand::{rngs::ThreadRng, thread_rng, Rng};
 use raytracing::material::{Dielectric, Lambertian, Metal};
 use raytracing::shape::Sphere;
-use raytracing::{Albedo, Camera, HitList, Hittable, Ray, Rgb, Screen, Vec3};
+use raytracing::{Camera, Color, HitList, Hittable, Ray, Screen, Vec3};
 use std::f64;
 use std::io::{self, Write};
 use std::time::{Duration, Instant};
@@ -54,7 +54,7 @@ fn main() {
         }
 
         for (x, pix) in row.iter_mut().enumerate() {
-            let mut color = [0u32; 3];
+            let mut color = Color::new(0., 0., 0.);
             for _ in 0..SAMPLES_PER_PIXEL {
                 let (rand_i, rand_j): (f64, f64) = if !ANTIALIASING {
                     (0., 0.)
@@ -63,26 +63,21 @@ fn main() {
                 };
 
                 let i = (x as f64 + rand_i) / (width as f64 - 1.);
-                let j = (y as f64 + rand_j) / (height as f64 - 1.);
-                let j = 1. - j;
+                let j = 1. - (y as f64 + rand_j) / (height as f64 - 1.);
 
                 let sample = ray_color(&world, &camera.get_ray(i, j), MAX_RAY_BOUNCES);
-                color[0] += sample.r as u32;
-                color[1] += sample.g as u32;
-                color[2] += sample.b as u32;
+                color += sample;
             }
 
-            color[0] /= SAMPLES_PER_PIXEL as u32;
-            color[1] /= SAMPLES_PER_PIXEL as u32;
-            color[2] /= SAMPLES_PER_PIXEL as u32;
-            *pix = Rgb::new(color[0] as u8, color[1] as u8, color[2] as u8);
+            color /= SAMPLES_PER_PIXEL as f64;
+            *pix = color;
         }
     }
     println!("\nDone!");
 
     let mut window = Window::new("Raytracing", width, height, WindowOptions::default()).unwrap();
     window.limit_update_rate(Some(UPDATE_DELAY));
-    let buffer = screen.encode(true);
+    let buffer = screen.encode();
     while window.is_open() && !window.is_key_down(Key::Escape) {
         window
             .update_with_buffer(&buffer, screen.width, screen.height)
@@ -92,8 +87,8 @@ fn main() {
 
 /// Iterative version of the diffuse ray calculation.
 /// Used because the recursive method blew the stack every time.
-fn ray_color(world: &HitList, ray: &Ray, mut bounces: u32) -> Rgb {
-    let mut color = Albedo::default();
+fn ray_color(world: &HitList, ray: &Ray, mut bounces: u32) -> Color {
+    let mut color = Color::default();
     let mut ray = ray.clone();
 
     // NOTE: Tweak the beginning of the range to deal with shadow acne.
@@ -117,7 +112,7 @@ fn ray_color(world: &HitList, ray: &Ray, mut bounces: u32) -> Rgb {
     // Calculate color of the sky
     let unit_dir = Vec3::normalized(ray.dir);
     let t = 0.5 * (unit_dir.y + 1.);
-    let sky = (1. - t) * Rgb::f64(1., 1., 1.) + t * Rgb::f64(0.5, 0.7, 1.);
+    let sky = (1. - t) * Color::new(1., 1., 1.) + t * Color::new(0.5, 0.7, 1.);
 
     sky * color
 }
@@ -140,11 +135,11 @@ fn random_scene(rng: &mut ThreadRng) -> HitList {
             let material = rng.gen::<f64>();
             if material < 0.8 {
                 // diffuse
-                let albedo = Albedo::rand(rng) * Albedo::rand(rng);
+                let albedo = Color::rand(rng) * Color::rand(rng);
                 world.push(Sphere::new(center, 0.2, Lambertian::new(albedo)));
-            } else if material < 0.98 {
+            } else if material < 0.95 {
                 // metal
-                let albedo = Albedo::rand_range(rng, 0.5, 1.);
+                let albedo = Color::rand_range(rng, 0.5, 1.);
                 let fuzz = rng.gen_range(0., 0.5);
                 world.push(Sphere::new(center, 0.2, Metal::new(albedo, fuzz)));
             } else {

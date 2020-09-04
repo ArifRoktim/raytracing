@@ -1,11 +1,11 @@
-use crate::{Albedo, Hit, Ray, Vec3};
+use crate::{Color, Hit, Ray, Vec3};
 
 pub struct Scatter {
-    pub albedo: Albedo,
+    pub albedo: Color,
     pub ray: Ray,
 }
 impl Scatter {
-    pub fn new(albedo: Albedo, ray: Ray) -> Self {
+    pub fn new(albedo: Color, ray: Ray) -> Self {
         Self { albedo, ray }
     }
 }
@@ -18,15 +18,15 @@ pub trait Material {
 }
 
 pub struct Lambertian {
-    pub albedo: Albedo,
+    pub albedo: Color,
 }
 impl Lambertian {
-    pub fn new(albedo: Albedo) -> Self {
+    pub fn new(albedo: Color) -> Self {
         Self { albedo }
     }
 
     pub fn from(a: [f64; 3]) -> Self {
-        Self::new(Albedo::new(a[0], a[1], a[2]))
+        Self::new(Color::new(a[0], a[1], a[2]))
     }
 }
 impl Material for Lambertian {
@@ -39,18 +39,18 @@ impl Material for Lambertian {
 }
 
 pub struct Metal {
-    pub albedo: Albedo,
+    pub albedo: Color,
     /// The fuzziness of the Metal. Is between `0.0` and `1.0`
     pub fuzz: f64,
 }
 impl Metal {
-    pub fn new(albedo: Albedo, fuzz: f64) -> Self {
+    pub fn new(albedo: Color, fuzz: f64) -> Self {
         let fuzz = if fuzz > 1. { 1. } else { fuzz };
         Self { albedo, fuzz }
     }
 
     pub fn from(a: [f64; 3], fuzz: f64) -> Self {
-        Self::new(Albedo::new(a[0], a[1], a[2]), fuzz)
+        Self::new(Color::new(a[0], a[1], a[2]), fuzz)
     }
 }
 impl Material for Metal {
@@ -105,6 +105,6 @@ impl Material for Dielectric {
             Ray::new(hit.point, refracted)
         };
 
-        Some(Scatter::new(Albedo::default(), scattered))
+        Some(Scatter::new(Color::default(), scattered))
     }
 }

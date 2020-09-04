@@ -3,7 +3,7 @@ pub mod material;
 pub mod shape;
 pub mod vec3;
 
-pub use color::{Albedo, Rgb};
+pub use color::Color;
 pub use material::{Material, Scatter};
 pub use shape::{Hit, HitList, Hittable};
 pub use vec3::Vec3;
@@ -12,36 +12,38 @@ pub struct Screen {
     pub width: usize,
     pub height: usize,
     /// Flat buffer of 24-bit pixels with length of `width * height`
-    pub buffer: Box<[Rgb]>,
+    pub buffer: Box<[Color]>,
 }
 impl Screen {
     pub fn new(width: usize, height: usize) -> Self {
         Self {
             width,
             height,
-            buffer: vec![Rgb::default(); width * height].into(),
+            buffer: vec![Color::default(); width * height].into(),
         }
     }
 
-    /// Encodes each Pixel into `0RGB` and optionally applies gamma correction
-    pub fn encode(&self, gamma2: bool) -> Box<[u32]> {
+    /// Encodes each Pixel into `0RGB` and applies gamma correction
+    pub fn encode(&self) -> Box<[u32]> {
         self.buffer
             .iter()
             .map(|p| {
-                let (r, g, b) = if gamma2 {
-                    let (r, g, b) = (p.r as f64 / 255., p.g as f64 / 255., p.b as f64 / 255.);
-                    let (r, g, b) = (r.sqrt() * 255., g.sqrt() * 255., b.sqrt() * 255.);
-                    (r as u32, g as u32, b as u32)
-                } else {
-                    (p.r as u32, p.g as u32, p.b as u32)
-                };
+                assert!(0.0 <= p.r && p.r <= 1.0);
+                assert!(0.0 <= p.g && p.g <= 1.0);
+                assert!(0.0 <= p.b && p.b <= 1.0);
 
+                let (r, g, b) = (
+                    255.99 * p.r.sqrt(),
+                    255.99 * p.g.sqrt(),
+                    255.99 * p.b.sqrt(),
+                );
+                let (r, g, b) = (r as u32, g as u32, b as u32);
                 (r << 16) | (g << 8) | b
             })
             .collect()
     }
 
-    pub fn rows_mut(&mut self) -> std::slice::ChunksExactMut<Rgb> {
+    pub fn rows_mut(&mut self) -> std::slice::ChunksExactMut<Color> {
         self.buffer.chunks_exact_mut(self.width)
     }
 }
