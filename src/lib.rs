@@ -8,6 +8,8 @@ pub use material::{Material, Scatter};
 pub use shape::{Hit, HitList, Hittable};
 pub use vec3::Vec3;
 
+use rayon::prelude::*;
+
 pub struct Screen {
     pub width: usize,
     pub height: usize,
@@ -45,6 +47,10 @@ impl Screen {
 
     pub fn rows_mut(&mut self) -> std::slice::ChunksExactMut<Color> {
         self.buffer.chunks_exact_mut(self.width)
+    }
+
+    pub fn par_rows_mut(&mut self) -> rayon::slice::ChunksExactMut<Color> {
+        self.buffer.par_chunks_exact_mut(self.width)
     }
 }
 

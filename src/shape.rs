@@ -50,13 +50,13 @@ pub trait Hittable {
 }
 
 #[derive(Default)]
-pub struct HitList(pub Vec<Box<dyn Hittable>>);
+pub struct HitList(pub Vec<Box<dyn Hittable + Send + Sync>>);
 impl HitList {
     pub fn new() -> Self {
         Self(Vec::new())
     }
 
-    pub fn push<T: Hittable + 'static>(&mut self, val: T) {
+    pub fn push<T: Hittable + Send + Sync + 'static>(&mut self, val: T) {
         self.0.push(Box::new(val))
     }
 }
