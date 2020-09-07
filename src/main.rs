@@ -48,75 +48,74 @@ fn main() {
     let rows_done = Arc::new(AtomicUsize::new(0));
 
     let thread_progress = rows_done.clone();
-    // Spawn a new thread so that the progress can be printed.
-    let handle = thread::spawn(move || {
-        // Parallelize over each row
-        screen.par_rows_mut().enumerate().for_each_init(
-            // Give each spawned thread an rng and access to the row counter
-            || (SmallRng::from_entropy(), thread_progress.clone()),
-            |(rng, counter), (y, row)| {
-                // Complete each row and then increment the counter.
-                for (x, pix) in row.iter_mut().enumerate() {
-                    let mut color = Color::new(0., 0., 0.);
-                    for _ in 0..SAMPLES_PER_PIXEL {
-                        let (rand_i, rand_j): (f64, f64) = if !ANTIALIASING {
-                            (0., 0.)
-                        } else {
-                            (rng.gen(), rng.gen())
-                        };
-                        let i = (x as f64 + rand_i) / (width as f64 - 1.);
-                        let j = 1. - (y as f64 + rand_j) / (height as f64 - 1.);
+    // Spawn a new thread for monitoring progress.
+    let progress = thread::spawn(move || {
+        let mut time = Instant::now();
+        loop {
+            let delta = time.elapsed();
+            if delta < UPDATE_DELAY {
+                thread::sleep(UPDATE_DELAY - delta);
+                time = Instant::now();
+            }
 
-                        let ray = camera.get_ray(i, j, rng);
-                        let sample = ray_color(&world, &ray, rng);
-                        color += sample;
-                    }
-                    color /= SAMPLES_PER_PIXEL as f64;
-                    *pix = color;
-                }
-                counter.fetch_add(1, Ordering::SeqCst);
-            },
-        );
+            let rows = thread_progress.load(Ordering::SeqCst);
+            // Clear the line before printing.
+            // http://ascii-table.com/ansi-escape-sequences.php
+            print!(
+                "\x1B[K\rRows remaining: {}/{} ({:.2}%)",
+                height - rows,
+                height,
+                (height - rows) as f64 / height as f64 * 100.,
+            );
+            io::stdout().flush().unwrap();
 
-        // Display the screen
-        let mut window =
-            Window::new("Raytracing", width, height, WindowOptions::default()).unwrap();
-        window.limit_update_rate(Some(UPDATE_DELAY));
-        let buffer = screen.encode();
-        while window.is_open() && !window.is_key_down(Key::Escape) {
-            window
-                .update_with_buffer(&buffer, screen.width, screen.height)
-                .unwrap();
+            // Exit when threads are done.
+            if rows == height {
+                println!("\nDone!");
+                break;
+            }
         }
-        println!();
     });
 
-    // Print progress
-    let mut time = Instant::now();
-    loop {
-        let delta = time.elapsed();
-        if delta < UPDATE_DELAY {
-            thread::sleep(UPDATE_DELAY - delta);
-            time = Instant::now();
-        }
+    // Parallelize over each row
+    screen.par_rows_mut().enumerate().for_each_init(
+        // Give each spawned thread an rng and access to the row counter
+        || (SmallRng::from_entropy(), rows_done.clone()),
+        |(rng, counter), (y, row)| {
+            // Complete each row and then increment the counter.
+            for (x, pix) in row.iter_mut().enumerate() {
+                let mut avg = Color::new(0., 0., 0.);
+                for _ in 0..SAMPLES_PER_PIXEL {
+                    let (rand_i, rand_j): (f64, f64) = if !ANTIALIASING {
+                        (0., 0.)
+                    } else {
+                        (rng.gen(), rng.gen())
+                    };
+                    let i = (x as f64 + rand_i) / (width as f64 - 1.);
+                    let j = 1. - (y as f64 + rand_j) / (height as f64 - 1.);
 
-        let rows = rows_done.load(Ordering::SeqCst);
-        // http://ascii-table.com/ansi-escape-sequences.php
-        print!(
-            "\x1B[K\rRows remaining: {}/{} ({:.2}%)",
-            height - rows,
-            height,
-            (height - rows) as f64 / height as f64 * 100.,
-        );
-        io::stdout().flush().unwrap();
+                    let ray = camera.get_ray(i, j, rng);
+                    let sample = ray_color(&world, &ray, rng);
+                    avg += sample;
+                }
+                avg /= SAMPLES_PER_PIXEL as f64;
+                *pix = avg;
+            }
+            counter.fetch_add(1, Ordering::SeqCst);
+        },
+    );
 
-        // Exit when threads are done.
-        if rows == height {
-            break;
-        }
+    // Display the screen
+    let mut window = Window::new("Raytracing", width, height, WindowOptions::default()).unwrap();
+    window.limit_update_rate(Some(UPDATE_DELAY));
+    let buffer = screen.encode();
+    while window.is_open() && !window.is_key_down(Key::Escape) {
+        window
+            .update_with_buffer(&buffer, screen.width, screen.height)
+            .unwrap();
     }
 
-    handle.join().unwrap();
+    progress.join().unwrap();
 }
 
 /// Iterative version of the diffuse ray calculation.
