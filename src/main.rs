@@ -1,10 +1,10 @@
 use minifb::{Key, Window, WindowOptions};
-use rand::{rngs::ThreadRng, thread_rng, Rng};
+use rand::{rngs::SmallRng, Rng, SeedableRng};
 use rayon::prelude::*;
 
 use raytracing::material::{Dielectric, Lambertian, Metal};
 use raytracing::shape::Sphere;
-use raytracing::{Camera, Color, HitList, Hittable, Ray, Screen, Vec3};
+use raytracing::{Camera, Color, CrateRng, HitList, Hittable, Ray, Screen, Vec3};
 use std::f64;
 use std::io::{self, Write};
 use std::sync::{
@@ -29,7 +29,7 @@ const SAMPLES_PER_PIXEL: u16 = 100;
 const MAX_RAY_BOUNCES: u32 = 100;
 
 fn main() {
-    let mut rng = thread_rng();
+    let mut rng = SmallRng::from_entropy();
 
     let width = DIM[0];
     let height = DIM[1];
@@ -53,7 +53,7 @@ fn main() {
         // Parallelize over each row
         screen.par_rows_mut().enumerate().for_each_init(
             // Give each spawned thread an rng and access to the row counter
-            || (rand::thread_rng(), thread_progress.clone()),
+            || (SmallRng::from_entropy(), thread_progress.clone()),
             |(rng, counter), (y, row)| {
                 // Complete each row and then increment the counter.
                 for (x, pix) in row.iter_mut().enumerate() {
@@ -67,7 +67,8 @@ fn main() {
                         let i = (x as f64 + rand_i) / (width as f64 - 1.);
                         let j = 1. - (y as f64 + rand_j) / (height as f64 - 1.);
 
-                        let sample = ray_color(&world, &camera.get_ray(i, j), MAX_RAY_BOUNCES);
+                        let ray = camera.get_ray(i, j, rng);
+                        let sample = ray_color(&world, &ray, rng);
                         color += sample;
                     }
                     color /= SAMPLES_PER_PIXEL as f64;
@@ -120,13 +121,14 @@ fn main() {
 
 /// Iterative version of the diffuse ray calculation.
 /// Used because the recursive method blew the stack every time.
-fn ray_color(world: &HitList, ray: &Ray, mut bounces: u32) -> Color {
+fn ray_color(world: &HitList, ray: &Ray, rng: &mut CrateRng) -> Color {
     let mut color = Color::default();
     let mut ray = ray.clone();
+    let mut bounces = MAX_RAY_BOUNCES;
 
     // NOTE: Tweak the beginning of the range to deal with shadow acne.
     while let Some(hit) = world.hit(&ray, &(0.001..f64::INFINITY)) {
-        if let Some(scatter) = hit.material.scatter(&ray, &hit) {
+        if let Some(scatter) = hit.material.scatter(&ray, &hit, rng) {
             color *= scatter.albedo;
             ray = scatter.ray;
         } else {
@@ -150,7 +152,7 @@ fn ray_color(world: &HitList, ray: &Ray, mut bounces: u32) -> Color {
     sky * color
 }
 
-fn random_scene(rng: &mut ThreadRng) -> HitList {
+fn random_scene(rng: &mut CrateRng) -> HitList {
     let mut world = HitList::new();
     world.push(Sphere::from(
         [0., -1000., 0.],

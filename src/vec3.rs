@@ -1,6 +1,7 @@
-use rand::thread_rng;
 use rand_distr::Distribution;
 use std::ops;
+
+use crate::CrateRng;
 
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct Vec3 {
@@ -26,13 +27,13 @@ impl Vec3 {
         v / v.norm()
     }
 
-    pub fn rand_unit_sphere() -> Self {
-        let ret = rand_distr::UnitSphere.sample(&mut thread_rng());
+    pub fn rand_unit_sphere(rng: &mut CrateRng) -> Self {
+        let ret = rand_distr::UnitSphere.sample(rng);
         Self::new(ret[0], ret[1], ret[2])
     }
 
-    pub fn rand_unit_disk() -> Self {
-        let ret = rand_distr::UnitDisc.sample(&mut thread_rng());
+    pub fn rand_unit_disk(rng: &mut CrateRng) -> Self {
+        let ret = rand_distr::UnitDisc.sample(rng);
         Self::new(ret[0], ret[1], 0.)
     }
 

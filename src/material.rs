@@ -1,4 +1,5 @@
-use crate::{Color, Hit, Ray, Vec3};
+use crate::{Color, CrateRng, Hit, Ray, Vec3};
+use rand::Rng;
 
 pub struct Scatter {
     pub albedo: Color,
@@ -12,7 +13,7 @@ impl Scatter {
 
 pub trait Material {
     /// A material will either absorb a ray (`None`) or scatter it.
-    fn scatter(&self, _ray: &Ray, _hit: &Hit) -> Option<Scatter> {
+    fn scatter(&self, _ray: &Ray, _hit: &Hit, _rng: &mut CrateRng) -> Option<Scatter> {
         None
     }
 }
@@ -30,8 +31,8 @@ impl Lambertian {
     }
 }
 impl Material for Lambertian {
-    fn scatter(&self, _ray: &Ray, hit: &Hit) -> Option<Scatter> {
-        let scatter_dir = hit.normal + Vec3::rand_unit_sphere();
+    fn scatter(&self, _ray: &Ray, hit: &Hit, rng: &mut CrateRng) -> Option<Scatter> {
+        let scatter_dir = hit.normal + Vec3::rand_unit_sphere(rng);
         let scattered = Ray::new(hit.point, scatter_dir);
         // TODO: Make `Scatter` carry a reference to albedo instead of cloning it
         Some(Scatter::new(self.albedo.clone(), scattered))
@@ -54,8 +55,8 @@ impl Metal {
     }
 }
 impl Material for Metal {
-    fn scatter(&self, ray: &Ray, hit: &Hit) -> Option<Scatter> {
-        let fuzz = self.fuzz * Vec3::rand_unit_sphere();
+    fn scatter(&self, ray: &Ray, hit: &Hit, rng: &mut CrateRng) -> Option<Scatter> {
+        let fuzz = self.fuzz * Vec3::rand_unit_sphere(rng);
         let reflected = ray.dir.reflect(hit.normal) + fuzz;
         let mut scattered = Ray::new(hit.point, reflected);
 
@@ -85,7 +86,7 @@ impl Dielectric {
     }
 }
 impl Material for Dielectric {
-    fn scatter(&self, ray: &Ray, hit: &Hit) -> Option<Scatter> {
+    fn scatter(&self, ray: &Ray, hit: &Hit, rng: &mut CrateRng) -> Option<Scatter> {
         let eta_i_over_eta_t = if hit.front_face {
             1. / self.ref_index
         } else {
@@ -96,7 +97,7 @@ impl Material for Dielectric {
         let sin_theta = (1. - cos_theta.powi(2)).sqrt();
 
         let scattered = if eta_i_over_eta_t * sin_theta > 1.0
-            || rand::random::<f64>() < Self::schlick(cos_theta, eta_i_over_eta_t)
+            || rng.gen::<f64>() < Self::schlick(cos_theta, eta_i_over_eta_t)
         {
             let reflected = unit_dir.reflect(hit.normal);
             Ray::new(hit.point, reflected)

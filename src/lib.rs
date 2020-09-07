@@ -10,6 +10,9 @@ pub use vec3::Vec3;
 
 use rayon::prelude::*;
 
+// pub type CrateRng = rand::rngs::ThreadRng;
+pub type CrateRng = rand::rngs::SmallRng;
+
 pub struct Screen {
     pub width: usize,
     pub height: usize,
@@ -138,8 +141,8 @@ impl Camera {
         )
     }
 
-    pub fn get_ray(&self, i: f64, j: f64) -> Ray {
-        let rand_disk = self.lens_radius * Vec3::rand_unit_disk();
+    pub fn get_ray(&self, i: f64, j: f64, rng: &mut CrateRng) -> Ray {
+        let rand_disk = self.lens_radius * Vec3::rand_unit_disk(rng);
         let offset = rand_disk.x * self.u + rand_disk.y * self.v;
         let origin = self.origin + offset;
 

@@ -1,9 +1,10 @@
 use rand::{
     distributions::{Distribution, Uniform},
-    rngs::ThreadRng,
     Rng,
 };
 use std::ops;
+
+use crate::CrateRng;
 
 #[derive(Clone)]
 /// Each color value ranges from 0.0 to 1.0, where 1.0 is full brightness
@@ -17,12 +18,12 @@ impl Color {
         Self { r, g, b }
     }
 
-    pub fn rand(rng: &mut ThreadRng) -> Self {
+    pub fn rand(rng: &mut CrateRng) -> Self {
         let albedo = rng.gen::<[f64; 3]>();
         albedo.into()
     }
 
-    pub fn rand_range(rng: &mut ThreadRng, low: f64, high: f64) -> Self {
+    pub fn rand_range(rng: &mut CrateRng, low: f64, high: f64) -> Self {
         let distr = Uniform::new(low, high);
         let albedo = [distr.sample(rng), distr.sample(rng), distr.sample(rng)];
         albedo.into()

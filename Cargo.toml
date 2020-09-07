@@ -12,9 +12,12 @@ opt-level = 2
 lto = "fat"
 
 [dependencies]
-rand = "0.7.3"
 rand_distr = "0.3.0"
 rayon = "1.4.0"
+
+[dependencies.rand]
+version = "0.7.3"
+features = ["small_rng"]
 
 [dependencies.minifb]
 version = "0.18.0"
