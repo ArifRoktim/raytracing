@@ -3,7 +3,7 @@ use rand::{rngs::SmallRng, Rng, SeedableRng};
 use rayon::prelude::*;
 
 use raytracing::material::{Dielectric, Lambertian, Metal};
-use raytracing::shape::Sphere;
+use raytracing::shape::{MovingSphere, Sphere};
 use raytracing::{Camera, Color, CrateRng, HitList, Hittable, Ray, Screen, Vec3};
 use std::f64;
 use std::io::{self, Write};
@@ -33,15 +33,16 @@ fn main() {
 
     let width = DIM[0];
     let height = DIM[1];
-    let camera = Camera::from(
-        [13., 2., 3.],
-        [0., 0., 0.],
-        None,
-        20.,
-        width as f64 / height as f64,
-        0.1,
-        Some(10.),
-    );
+    let camera = Camera::builder()
+        .origin([13., 2., 3.])
+        .look_at([0., 0., 0.])
+        .vfov_degrees(20.)
+        .aspect_ratio(width as f64 / height as f64)
+        .aperture(0.1)
+        .focus_dist(10.)
+        .shutter_time(0., 1.)
+        .build();
+
     let world = random_scene(&mut rng);
 
     let mut screen = Screen::new(width, height);
@@ -169,8 +170,9 @@ fn random_scene(rng: &mut CrateRng) -> HitList {
             let material = rng.gen::<f64>();
             if material < 0.8 {
                 // diffuse
-                let albedo = Color::rand(rng) * Color::rand(rng);
-                world.push(Sphere::new(center, 0.2, Lambertian::new(albedo)));
+                let material = Lambertian::new(Color::rand(rng) * Color::rand(rng));
+                let center2 = center + Vec3::new(0., rng.gen_range(0., 0.5), 0.);
+                world.push(MovingSphere::new(center, center2, 0., 1., 0.2, material));
             } else if material < 0.95 {
                 // metal
                 let albedo = Color::rand_range(rng, 0.5, 1.);

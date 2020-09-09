@@ -11,6 +11,10 @@ pub struct Vec3 {
 }
 impl Vec3 {
     pub const ORIGIN: Self = Self::new(0., 0., 0.);
+    // The standard basis
+    pub const UNIT_X: Self = Self::new(1., 0., 0.);
+    pub const UNIT_Y: Self = Self::new(0., 1., 0.);
+    pub const UNIT_Z: Self = Self::new(0., 0., 1.);
 
     pub const fn new(x: f64, y: f64, z: f64) -> Self {
         Self { x, y, z }

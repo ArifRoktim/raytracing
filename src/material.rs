@@ -31,9 +31,9 @@ impl Lambertian {
     }
 }
 impl Material for Lambertian {
-    fn scatter(&self, _ray: &Ray, hit: &Hit, rng: &mut CrateRng) -> Option<Scatter> {
+    fn scatter(&self, ray: &Ray, hit: &Hit, rng: &mut CrateRng) -> Option<Scatter> {
         let scatter_dir = hit.normal + Vec3::rand_unit_sphere(rng);
-        let scattered = Ray::new(hit.point, scatter_dir);
+        let scattered = Ray::new(hit.point, scatter_dir, ray.time);
         // TODO: Make `Scatter` carry a reference to albedo instead of cloning it
         Some(Scatter::new(self.albedo.clone(), scattered))
     }
@@ -58,7 +58,7 @@ impl Material for Metal {
     fn scatter(&self, ray: &Ray, hit: &Hit, rng: &mut CrateRng) -> Option<Scatter> {
         let fuzz = self.fuzz * Vec3::rand_unit_sphere(rng);
         let reflected = ray.dir.reflect(hit.normal) + fuzz;
-        let mut scattered = Ray::new(hit.point, reflected);
+        let mut scattered = Ray::new(hit.point, reflected, ray.time);
 
         if scattered.dir.dot(hit.normal) > 0. {
             Some(Scatter::new(self.albedo.clone(), scattered))
@@ -96,16 +96,15 @@ impl Material for Dielectric {
         let cos_theta = (-unit_dir).dot(hit.normal).min(1.0);
         let sin_theta = (1. - cos_theta.powi(2)).sqrt();
 
-        let scattered = if eta_i_over_eta_t * sin_theta > 1.0
+        let dir = if eta_i_over_eta_t * sin_theta > 1.0
             || rng.gen::<f64>() < Self::schlick(cos_theta, eta_i_over_eta_t)
         {
-            let reflected = unit_dir.reflect(hit.normal);
-            Ray::new(hit.point, reflected)
+            unit_dir.reflect(hit.normal)
         } else {
-            let refracted = unit_dir.refract(hit.normal, eta_i_over_eta_t);
-            Ray::new(hit.point, refracted)
+            unit_dir.refract(hit.normal, eta_i_over_eta_t)
         };
 
+        let scattered = Ray::new(hit.point, dir, ray.time);
         Some(Scatter::new(Color::default(), scattered))
     }
 }

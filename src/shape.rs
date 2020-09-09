@@ -79,7 +79,7 @@ pub struct Sphere<T> {
     pub radius: f64,
     pub material: T,
 }
-impl<T: Material> Sphere<T> {
+impl<T> Sphere<T> {
     pub fn new(center: Vec3, radius: f64, material: T) -> Self {
         Self {
             center,
@@ -104,6 +104,69 @@ impl<T: Material> Hittable for Sphere<T> {
             let hit = |t| {
                 let point = ray.at(t);
                 let outward_normal = (point - self.center) / self.radius;
+                Some(Hit::ray(point, outward_normal, t, ray, &self.material))
+            };
+
+            let t = (-half_b - root) / a;
+            if range.contains(&t) {
+                return hit(t);
+            }
+
+            let t = (-half_b + root) / a;
+            if range.contains(&t) {
+                return hit(t);
+            }
+        }
+
+        None
+    }
+}
+
+/// Sphere whose center moves from `c0` at `t0` to `c1` at `t1`
+pub struct MovingSphere<T> {
+    pub c0: Vec3,
+    pub c1: Vec3,
+    pub t0: f64,
+    pub t1: f64,
+    pub radius: f64,
+    pub material: T,
+}
+impl<T> MovingSphere<T> {
+    pub fn new(c0: Vec3, c1: Vec3, t0: f64, t1: f64, radius: f64, material: T) -> Self {
+        Self {
+            c0,
+            c1,
+            t0,
+            t1,
+            radius,
+            material,
+        }
+    }
+
+    pub fn from(c0: [f64; 3], c1: [f64; 3], t0: f64, t1: f64, radius: f64, material: T) -> Self {
+        Self::new(c0.into(), c1.into(), t0, t1, radius, material)
+    }
+
+    // Returns the center at time `t`
+    pub fn center(&self, t: f64) -> Vec3 {
+        self.c0 + (self.c1 - self.c0) * (t - self.t0) / (self.t1 - self.t0)
+    }
+}
+impl<T: Material> Hittable for MovingSphere<T> {
+    fn hit(&self, ray: &Ray, range: &Range<f64>) -> Option<Hit> {
+        let center = self.center(ray.time);
+
+        let oc = ray.origin - center;
+        let a = ray.dir.norm_squared();
+        let half_b = oc.dot(ray.dir);
+        let c = oc.norm_squared() - self.radius.powi(2);
+        let disciminant = half_b.powi(2) - a * c;
+
+        if disciminant >= 0. {
+            let root = disciminant.sqrt();
+            let hit = |t| {
+                let point = ray.at(t);
+                let outward_normal = (point - center) / self.radius;
                 Some(Hit::ray(point, outward_normal, t, ray, &self.material))
             };
 

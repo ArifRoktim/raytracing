@@ -8,7 +8,9 @@ pub use material::{Material, Scatter};
 pub use shape::{Hit, HitList, Hittable};
 pub use vec3::Vec3;
 
+use rand::distributions::{Distribution, Uniform};
 use rayon::prelude::*;
+use std::ops::Range;
 
 // pub type CrateRng = rand::rngs::ThreadRng;
 pub type CrateRng = rand::rngs::SmallRng;
@@ -62,7 +64,9 @@ pub struct Camera {
     pub horiz: Vec3,
     pub vert: Vec3,
     pub lower_left: Vec3,
-    pub lens_radius: f64,
+
+    pub lens_radius: Option<f64>,
+    pub shutter_time: Option<Uniform<f64>>,
     // Orthonormal basis to describe camera's orientation
     // x
     pub u: Vec3,
@@ -72,84 +76,118 @@ pub struct Camera {
     pub w: Vec3,
 }
 impl Camera {
-    pub fn new(
-        look_from: Vec3,
-        look_at: Vec3,
-        view_up: Option<Vec3>,
-        vfov_degrees: f64,
-        aspect_ratio: f64,
-        aperature: f64,
-        focus_dist: Option<f64>,
-    ) -> Self {
-        // Fill in default values if not provided
-        let view_up = match view_up {
-            Some(vup) => vup,
-            None => Vec3::new(0., 1., 0.),
-        };
-        let focus_dist = match focus_dist {
-            Some(f) => f,
-            None => (look_from - look_at).norm(),
-        };
+    pub fn builder() -> CameraBuilder {
+        CameraBuilder::default()
+    }
 
-        let theta = vfov_degrees.to_radians() / 2.;
+    pub fn get_ray(&self, i: f64, j: f64, rng: &mut CrateRng) -> Ray {
+        let origin = if let Some(radius) = self.lens_radius {
+            let rand_disk = radius * Vec3::rand_unit_disk(rng);
+            let offset = rand_disk.x * self.u + rand_disk.y * self.v;
+            self.origin + offset
+        } else {
+            self.origin
+        };
+        let time = self.shutter_time.map_or(0., |s| s.sample(rng));
+
+        Ray::new(
+            origin,
+            self.lower_left + i * self.horiz + j * self.vert - origin,
+            time,
+        )
+    }
+}
+
+pub struct CameraBuilder {
+    origin: Vec3,
+    look_at: Vec3,
+    view_up: Vec3,
+    vfov_degrees: f64,
+    aspect_ratio: f64,
+    aperture: Option<f64>,
+    /// Defaults to normalized distance between `origin` and `look_at`
+    focus_dist: Option<f64>,
+    shutter_time: Option<Range<f64>>,
+}
+impl CameraBuilder {
+    pub fn build(&self) -> Camera {
+        let lens_radius = self.aperture.map(|a| a / 2.);
+        let focus_dist = self
+            .focus_dist
+            .unwrap_or_else(|| (self.origin - self.look_at).norm());
+        let shutter_time = self.shutter_time.clone().map(Uniform::from);
+
+        let theta = self.vfov_degrees.to_radians() / 2.;
         let half_height = focus_dist * theta.tan();
-        let half_width = aspect_ratio * half_height;
+        let half_width = self.aspect_ratio * half_height;
 
         // Project view_up onto the plane of the camera
-        let w = Vec3::normalized(look_from - look_at);
-        let u = Vec3::normalized(view_up.cross(w));
+        let w = Vec3::normalized(self.origin - self.look_at);
+        let u = Vec3::normalized(self.view_up.cross(w));
         let v = w.cross(u);
 
-        let lower_left = look_from - u * half_width - v * half_height - focus_dist * w;
+        let lower_left = self.origin - u * half_width - v * half_height - focus_dist * w;
         let horiz = 2. * u * half_width;
         let vert = 2. * v * half_height;
 
-        let lens_radius = aperature / 2.;
-        Self {
-            origin: look_from,
+        Camera {
+            origin: self.origin,
             horiz,
             vert,
             lower_left,
             lens_radius,
+            shutter_time,
             u,
             v,
             w,
         }
     }
-
-    pub fn from<T: Into<Vec3>>(
-        look_from: T,
-        look_at: T,
-        view_up: Option<T>,
-        vfov_degrees: f64,
-        aspect_ratio: f64,
-        aperature: f64,
-        focus_dist: Option<f64>,
-    ) -> Self {
-        let look_from = look_from.into();
-        let look_at = look_at.into();
-        let view_up = view_up.map(|v| v.into());
-
-        Self::new(
-            look_from,
-            look_at,
-            view_up,
-            vfov_degrees,
-            aspect_ratio,
-            aperature,
-            focus_dist,
-        )
+    // ===Builder Methods===
+    pub fn origin<T: Into<Vec3>>(&mut self, origin: T) -> &mut Self {
+        self.origin = origin.into();
+        self
     }
-
-    pub fn get_ray(&self, i: f64, j: f64, rng: &mut CrateRng) -> Ray {
-        let rand_disk = self.lens_radius * Vec3::rand_unit_disk(rng);
-        let offset = rand_disk.x * self.u + rand_disk.y * self.v;
-        let origin = self.origin + offset;
-
-        Ray::new(
-            origin,
-            self.lower_left + i * self.horiz + j * self.vert - origin,
-        )
+    pub fn look_at<T: Into<Vec3>>(&mut self, look_at: T) -> &mut Self {
+        self.look_at = look_at.into();
+        self
+    }
+    pub fn vfov_degrees(&mut self, vfov: f64) -> &mut Self {
+        self.vfov_degrees = vfov;
+        self
+    }
+    pub fn aspect_ratio(&mut self, aspect_ratio: f64) -> &mut Self {
+        self.aspect_ratio = aspect_ratio;
+        self
+    }
+    pub fn view_up<T: Into<Vec3>>(&mut self, view_up: T) -> &mut Self {
+        self.view_up = view_up.into();
+        self
+    }
+    pub fn aperture(&mut self, aperture: f64) -> &mut Self {
+        self.aperture = Some(aperture);
+        self
+    }
+    pub fn focus_dist(&mut self, dist: f64) -> &mut Self {
+        self.focus_dist = Some(dist);
+        self
+    }
+    pub fn shutter_time(&mut self, start: f64, end: f64) -> &mut Self {
+        self.shutter_time = Some(Range { start, end });
+        self
+    }
+}
+impl Default for CameraBuilder {
+    fn default() -> Self {
+        Self {
+            origin: Vec3::ORIGIN,
+            look_at: Vec3::new(0., 0., -1.),
+            view_up: Vec3::UNIT_Y,
+            vfov_degrees: 60.,
+            aspect_ratio: 16. / 9.,
+            aperture: None,
+            focus_dist: None,
+            shutter_time: None,
+        }
     }
 }
 
@@ -157,14 +195,15 @@ impl Camera {
 pub struct Ray {
     pub origin: Vec3,
     pub dir: Vec3,
+    pub time: f64,
 }
 impl Ray {
-    pub fn new(origin: Vec3, dir: Vec3) -> Self {
-        Self { origin, dir }
+    pub fn new(origin: Vec3, dir: Vec3, time: f64) -> Self {
+        Self { origin, dir, time }
     }
 
-    pub fn from<T: Into<Vec3>, U: Into<Vec3>>(origin: T, dir: U) -> Self {
-        Self::new(origin.into(), dir.into())
+    pub fn from<T: Into<Vec3>, U: Into<Vec3>>(origin: T, dir: U, time: f64) -> Self {
+        Self::new(origin.into(), dir.into(), time)
     }
 
     pub fn at(&self, t: f64) -> Vec3 {
