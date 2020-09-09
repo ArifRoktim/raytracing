@@ -1,6 +1,10 @@
 use crate::{Color, CrateRng, Hit, Ray, Vec3};
 use rand::Rng;
 
+/// Check hit/ray collision by coloring material black.
+/// Al
+pub static DBG_MATERIAL: DbgBlack = DbgBlack {};
+
 pub struct Scatter {
     pub albedo: Color,
     pub ray: Ray,
@@ -18,6 +22,7 @@ pub trait Material {
     }
 }
 
+#[derive(Debug)]
 pub struct Lambertian {
     pub albedo: Color,
 }
@@ -39,6 +44,7 @@ impl Material for Lambertian {
     }
 }
 
+#[derive(Debug)]
 pub struct Metal {
     pub albedo: Color,
     /// The fuzziness of the Metal. Is between `0.0` and `1.0`
@@ -71,6 +77,7 @@ impl Material for Metal {
     }
 }
 
+#[derive(Debug)]
 pub struct Dielectric {
     pub ref_index: f64,
 }
@@ -106,5 +113,15 @@ impl Material for Dielectric {
 
         let scattered = Ray::new(hit.point, dir, ray.time);
         Some(Scatter::new(Color::default(), scattered))
+    }
+}
+
+#[derive(Debug)]
+/// Used for debugging
+pub struct DbgBlack {}
+impl Material for DbgBlack {
+    fn scatter(&self, ray: &Ray, _hit: &Hit, _rng: &mut CrateRng) -> Option<Scatter> {
+        // Just return the in-ray with albedo set to black
+        Some(Scatter::new(Color::new(0., 0., 0.), ray.clone()))
     }
 }

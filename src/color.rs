@@ -6,8 +6,8 @@ use std::ops;
 
 use crate::CrateRng;
 
-#[derive(Clone)]
 /// Each color value ranges from 0.0 to 1.0, where 1.0 is full brightness
+#[derive(Clone, Debug)]
 pub struct Color {
     pub r: f64,
     pub g: f64,

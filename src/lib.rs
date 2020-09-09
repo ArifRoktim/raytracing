@@ -5,7 +5,7 @@ pub mod vec3;
 
 pub use color::Color;
 pub use material::{Material, Scatter};
-pub use shape::{Hit, HitList, Hittable};
+pub use shape::{Hit, HitList, Hittable, BVH};
 pub use vec3::Vec3;
 
 use rand::distributions::{Distribution, Uniform};
