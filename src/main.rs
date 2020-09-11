@@ -42,79 +42,7 @@ fn main() {
         .focus_dist(10.)
         .shutter_time(0., 1.)
         .build();
-
-    // let world = random_scene(&mut rng);
-
-    let range = 0.0..1.;
-    let camera = Camera::builder()
-        .origin([-2., 1.5, 1.])
-        .look_at([0.2, 0., -1.2])
-        .vfov_degrees(40.)
-        .aspect_ratio(width as f64 / height as f64)
-        .build();
-    let mut world = HitList::new();
-    world.push(Sphere::from(
-        [0., -100.5, -1.],
-        100.,
-        Lambertian::from([0.8, 0.8, 0.]),
-    ));
-
-    let bvh1 = BVH::from(
-        Some(Box::new(Sphere::from(
-            [1.5, 0., -2.5],
-            0.5,
-            Metal::from([0.8, 0.6, 0.2], 0.),
-        ))),
-        Some(Box::new(Sphere::from(
-            [1.5, 0., -1.],
-            0.5,
-            Metal::from([0.8, 0.6, 0.2], 0.),
-        ))),
-        &range,
-    );
-    let bvh2 = BVH::from(
-        Some(Box::new(Sphere::from(
-            [-1.05, 0., -1.],
-            0.5,
-            Lambertian::from([0.1, 0.2, 0.5]),
-        ))),
-        Some(Box::new(Sphere::from(
-            [-1.05, 0., -2.5],
-            0.5,
-            Lambertian::from([0.1, 0.2, 0.5]),
-        ))),
-        &range,
-    );
-    let bvh3 = BVH::from(
-        Some(Box::new(Sphere::from(
-            [0., 0., -1.],
-            0.5,
-            Dielectric::new(1.5),
-        ))),
-        None,
-        &range,
-    );
-    let bvh = BVH::from(
-        Some(Box::new(BVH::from(Some(Box::new(bvh1)), None, &range))),
-        Some(Box::new(BVH::from(
-            Some(Box::new(bvh2)),
-            Some(Box::new(bvh3)),
-            &range,
-        ))),
-        &range,
-    );
-    // dbg!(&bvh);
-    // panic!();
-    // world.push(bvh1);
-    // world.push(bvh2);
-    // world.push(bvh3);
-    world.push(bvh);
-
-    // world.push(Sphere::from(
-    //     [-1.05, 0., -2.5],
-    //     0.5,
-    //     Lambertian::from([0.1, 0.2, 0.5]),
-    // ));
+    let world = random_scene(&mut rng);
 
     let mut screen = Screen::new(width, height);
     let rows_done = Arc::new(AtomicUsize::new(0));
@@ -269,7 +197,7 @@ fn random_scene(rng: &mut CrateRng) -> HitList {
         Metal::from([0.7, 0.6, 0.5], 0.0),
     ));
 
-    let bvh = BVH::hit_list(bvh_list, &(0.0..1.), rng);
+    let bvh = BVH::from_list(bvh_list, &(0.0..1.), rng);
     world.push(bvh);
 
     world

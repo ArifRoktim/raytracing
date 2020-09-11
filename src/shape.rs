@@ -267,7 +267,7 @@ impl BVH {
             left = hitlist.pop().unwrap();
             right = hitlist.pop().unwrap();
         } else {
-            hitlist.sort_by(|a, b| {
+            hitlist.sort_unstable_by(|a, b| {
                 let a = a.bounding_box(shutter_time).expect(err_msg);
                 let b = b.bounding_box(shutter_time).expect(err_msg);
                 let cmp = AABB::rand_axis_compare(rng);
