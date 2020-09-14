@@ -292,18 +292,26 @@ impl Hittable for BVH {
         }
 
         let mut range = range.clone();
-        let hit_left = self.left.as_ref().map(|h| h.hit(ray, &range)).flatten();
+        // TODO: Find out why using flat map is much slower than nested if let
+        let hit_left = if let Some(left) = &self.left {
+            if let Some(hit) = left.hit(ray, &range) {
+                // Update range so hit_right has to be a closer hit
+                range.end = hit.t;
+                Some(hit)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
 
-        // Update range so hit_right has to be a closer hit
-        if let Some(hit) = &hit_left {
-            range.end = hit.t;
-        }
-        let hit_right = self.right.as_ref().map(|h| h.hit(ray, &range)).flatten();
-        if hit_right.is_some() {
-            return hit_right;
+        if let Some(right) = &self.right {
+            if let Some(hit) = right.hit(ray, &range) {
+                return Some(hit);
+            }
         }
 
-        hit_right.or(hit_left)
+        hit_left
     }
 
     fn bounding_box(&self, _range: &Range<f64>) -> Option<AABB> {
