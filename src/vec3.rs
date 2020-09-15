@@ -1,4 +1,5 @@
-use rand_distr::Distribution;
+use rand_distr::{Distribution, Standard, Uniform};
+use rand::Rng;
 use std::ops;
 
 use crate::CrateRng;
@@ -91,6 +92,27 @@ impl Vec3 {
 impl From<[f64; 3]> for Vec3 {
     fn from(v: [f64; 3]) -> Self {
         Self::new(v[0], v[1], v[2])
+    }
+}
+
+impl ops::Index<Axis> for Vec3 {
+    type Output = f64;
+
+    fn index(&self, axis: Axis) -> &Self::Output {
+        match axis {
+            Axis::X => &self.x,
+            Axis::Y => &self.y,
+            Axis::Z => &self.z,
+        }
+    }
+}
+impl ops::IndexMut<Axis> for Vec3 {
+    fn index_mut(&mut self, axis: Axis) -> &mut Self::Output {
+        match axis {
+            Axis::X => &mut self.x,
+            Axis::Y => &mut self.y,
+            Axis::Z => &mut self.z,
+        }
     }
 }
 
@@ -201,3 +223,23 @@ impl ops::DivAssign<f64> for Vec3 {
         self.z /= rhs;
     }
 }
+
+#[derive(Copy, Clone)]
+pub enum Axis {
+    X,
+    Y,
+    Z,
+}
+impl Distribution<Axis> for Standard {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Axis {
+        // TODO: Make distr static?
+        let distr = Uniform::new(0u8, 3);
+        match distr.sample(rng) {
+            0 => Axis::X,
+            1 => Axis::Y,
+            2 => Axis::Z,
+            _ => unreachable!(),
+        }
+    }
+}
+

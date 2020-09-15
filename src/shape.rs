@@ -1,4 +1,4 @@
-use crate::{CrateRng, Material, Ray, Vec3};
+use crate::{Axis, CrateRng, Material, Ray, Vec3};
 use rand::Rng;
 use std::cmp::Ordering;
 use std::fmt::Debug;
@@ -135,42 +135,20 @@ impl AABB {
     pub fn hit(&self, ray: &Ray, range: &Range<f64>) -> bool {
         let mut range = range.clone();
 
-        // X coordinates
-        let inv_dir = 1.0 / ray.dir.x;
-        let mut t0 = (self.min.x - ray.origin.x) * inv_dir;
-        let mut t1 = (self.max.x - ray.origin.x) * inv_dir;
-        if inv_dir < 0. {
-            mem::swap(&mut t0, &mut t1);
-        }
-        range.start = range.start.max(t0);
-        range.end = range.end.min(t1);
-        if range.end <= range.start {
-            return false;
-        }
+        let mut hit = |axis| {
+            let inv_dir = 1.0 / ray.dir[axis];
+            let mut t0 = (self.min[axis] - ray.origin[axis]) * inv_dir;
+            let mut t1 = (self.max[axis] - ray.origin[axis]) * inv_dir;
+            if inv_dir < 0. {
+                mem::swap(&mut t0, &mut t1);
+            }
+            range.start = range.start.max(t0);
+            range.end = range.end.min(t1);
 
-        // Y coordinates
-        let inv_dir = 1.0 / ray.dir.y;
-        let mut t0 = (self.min.y - ray.origin.y) * inv_dir;
-        let mut t1 = (self.max.y - ray.origin.y) * inv_dir;
-        if inv_dir < 0. {
-            mem::swap(&mut t0, &mut t1);
-        }
-        range.start = range.start.max(t0);
-        range.end = range.end.min(t1);
-        if range.end <= range.start {
-            return false;
-        }
+            range.end > range.start
+        };
 
-        // Z coordinates
-        let inv_dir = 1.0 / ray.dir.z;
-        let mut t0 = (self.min.z - ray.origin.z) * inv_dir;
-        let mut t1 = (self.max.z - ray.origin.z) * inv_dir;
-        if inv_dir < 0. {
-            mem::swap(&mut t0, &mut t1);
-        }
-        range.start = range.start.max(t0);
-        range.end = range.end.min(t1);
-        if range.end <= range.start {
+        if !hit(Axis::X) || !hit(Axis::Y) || !hit(Axis::Z) {
             return false;
         }
 
@@ -178,16 +156,11 @@ impl AABB {
     }
 
     fn rand_axis_compare(rng: &mut CrateRng) -> Box<dyn Fn(&AABB, &AABB) -> Ordering> {
-        // TODO: Should define an `Axis` enum and impl Index<Axis> on Vec
-        let axis: u8 = rng.gen_range(0, 3);
-        Box::new(if axis == 0 {
-            |a: &AABB, b: &AABB| a.compare_x(b)
-        } else if axis == 1 {
-            |a: &AABB, b: &AABB| a.compare_y(b)
-        } else if axis == 2 {
-            |a: &AABB, b: &AABB| a.compare_z(b)
-        } else {
-            unreachable!()
+        let axis: Axis = rng.gen();
+        Box::new(match axis {
+            Axis::X => |a: &AABB, b: &AABB| a.compare_x(b),
+            Axis::Y => |a: &AABB, b: &AABB| a.compare_y(b),
+            Axis::Z => |a: &AABB, b: &AABB| a.compare_z(b),
         })
     }
     fn compare_x(&self, other: &AABB) -> Ordering {
@@ -205,15 +178,14 @@ impl AABB {
 #[derive(Debug)]
 pub struct BVH {
     bound_box: AABB,
-    // TODO: Maybe replace Box<dyn Hittable> with &dyn Hittable...
-    left: Option<Box<dyn Hittable>>,
-    right: Option<Box<dyn Hittable>>,
+    left: Box<dyn Hittable>,
+    right: Box<dyn Hittable>,
 }
 impl BVH {
     pub fn new(
         bound_box: AABB,
-        left: Option<Box<dyn Hittable>>,
-        right: Option<Box<dyn Hittable>>,
+        left: Box<dyn Hittable>,
+        right: Box<dyn Hittable>,
     ) -> Self {
         Self {
             bound_box,
@@ -223,23 +195,16 @@ impl BVH {
     }
 
     pub fn from(
-        left: Option<Box<dyn Hittable>>,
-        right: Option<Box<dyn Hittable>>,
+        left: Box<dyn Hittable>,
+        right: Box<dyn Hittable>,
         shutter_range: &Range<f64>,
     ) -> Self {
-        let l_box = left
-            .as_ref()
-            .map(|b| b.bounding_box(shutter_range))
-            .flatten();
-        let r_box = right
-            .as_ref()
-            .map(|b| b.bounding_box(shutter_range))
-            .flatten();
+        let l_box = left.bounding_box(shutter_range);
+        let r_box = right.bounding_box(shutter_range);
 
         let bound_box = match (l_box, r_box) {
             (Some(l_box), Some(r_box)) => l_box.surrounding(&r_box),
-            (_, Some(b_box)) | (Some(b_box), _) => b_box,
-            _ => panic!("No children were given!"),
+            _ => panic!("No bounding box in BVH construction!"),
         };
         Self::new(bound_box, left, right)
     }
@@ -252,14 +217,18 @@ impl BVH {
     // Recursively create the tree
     fn inner_list(
         mut hitlist: Vec<Box<dyn Hittable>>,
-        shutter_time: &Range<f64>,
+        shutter_range: &Range<f64>,
         rng: &mut CrateRng,
     ) -> Self {
         let err_msg = "No bounding box in BVH construction!";
+
+        // Only 1 available hittable for BVH node. Make the other one a dummy hittable.
         if hitlist.len() == 1 {
-            let left = hitlist.pop().unwrap();
-            let bound_box = left.bounding_box(shutter_time).expect(err_msg);
-            return Self::new(bound_box, Some(left), None);
+            // Make the left node the Dummy so less work is done in BVH::hit()
+            let left = Box::new(Dummy);
+            let right = hitlist.pop().unwrap();
+            let bound_box = right.bounding_box(shutter_range).expect(err_msg);
+            return Self::new(bound_box, left, right);
         }
 
         let (left, right);
@@ -268,21 +237,17 @@ impl BVH {
             right = hitlist.pop().unwrap();
         } else {
             hitlist.sort_unstable_by(|a, b| {
-                let a = a.bounding_box(shutter_time).expect(err_msg);
-                let b = b.bounding_box(shutter_time).expect(err_msg);
+                let a = a.bounding_box(shutter_range).expect(err_msg);
+                let b = b.bounding_box(shutter_range).expect(err_msg);
                 let cmp = AABB::rand_axis_compare(rng);
                 cmp(&a, &b)
             });
             let second_half = hitlist.split_off(hitlist.len() / 2);
-            left = Box::new(Self::inner_list(hitlist, shutter_time, rng));
-            right = Box::new(Self::inner_list(second_half, shutter_time, rng));
+            left = Box::new(Self::inner_list(hitlist, shutter_range, rng));
+            right = Box::new(Self::inner_list(second_half, shutter_range, rng));
         }
 
-        let l_box = left.bounding_box(shutter_time).expect(err_msg);
-        let r_box = right.bounding_box(shutter_time).expect(err_msg);
-
-        let bound_box = l_box.surrounding(&r_box);
-        Self::new(bound_box, Some(left), Some(right))
+        Self::from(left, right, shutter_range)
     }
 }
 impl Hittable for BVH {
@@ -292,23 +257,16 @@ impl Hittable for BVH {
         }
 
         let mut range = range.clone();
-        // TODO: Find out why using flat map is much slower than nested if let
-        let hit_left = if let Some(left) = &self.left {
-            if let Some(hit) = left.hit(ray, &range) {
-                // Update range so hit_right has to be a closer hit
-                range.end = hit.t;
-                Some(hit)
-            } else {
-                None
-            }
+        let hit_left = if let Some(hit) = self.left.hit(ray, &range) {
+            // Change range so next hit must be closer
+            range.end = hit.t;
+            Some(hit)
         } else {
             None
         };
 
-        if let Some(right) = &self.right {
-            if let Some(hit) = right.hit(ray, &range) {
-                return Some(hit);
-            }
+        if let Some(right_hit) = self.right.hit(ray, &range) {
+            return Some(right_hit)
         }
 
         hit_left
@@ -447,5 +405,15 @@ impl<T: Material + Send + Sync + Debug> Hittable for MovingSphere<T> {
             self.center(range.end) - rad,
             self.center(range.end) + rad,
         )))
+    }
+}
+
+/// Dummy Hittable for use in BVH node
+#[derive(Debug)]
+pub struct Dummy;
+impl Hittable for Dummy {
+    /// Dummy will never return a hit.
+    fn hit(&self, _ray: &Ray, _range: &Range<f64>) -> Option<Hit> {
+        None
     }
 }
