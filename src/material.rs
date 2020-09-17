@@ -1,10 +1,7 @@
 use crate::{Color, CrateRng, Hit, Ray, Vec3};
 use rand::Rng;
 
-/// Check hit/ray collision by coloring material black.
-/// Al
-pub static DBG_MATERIAL: DbgBlack = DbgBlack {};
-
+/// A scattered ray and its color information
 pub struct Scatter {
     pub albedo: Color,
     pub ray: Ray,
@@ -17,12 +14,11 @@ impl Scatter {
 
 pub trait Material {
     /// A material will either absorb a ray (`None`) or scatter it.
-    fn scatter(&self, _ray: &Ray, _hit: &Hit, _rng: &mut CrateRng) -> Option<Scatter> {
-        None
-    }
+    fn scatter(&self, ray: &Ray, hit: &Hit, rng: &mut CrateRng) -> Option<Scatter>;
 }
 
 #[derive(Debug)]
+/// Diffuse reflection
 pub struct Lambertian {
     pub albedo: Color,
 }
@@ -32,7 +28,7 @@ impl Lambertian {
     }
 
     pub fn from(a: [f64; 3]) -> Self {
-        Self::new(Color::new(a[0], a[1], a[2]))
+        Self::new(a.into())
     }
 }
 impl Material for Lambertian {
@@ -52,12 +48,12 @@ pub struct Metal {
 }
 impl Metal {
     pub fn new(albedo: Color, fuzz: f64) -> Self {
-        let fuzz = if fuzz > 1. { 1. } else { fuzz };
+        let fuzz = fuzz.min(1.);
         Self { albedo, fuzz }
     }
 
     pub fn from(a: [f64; 3], fuzz: f64) -> Self {
-        Self::new(Color::new(a[0], a[1], a[2]), fuzz)
+        Self::new(a.into(), fuzz)
     }
 }
 impl Material for Metal {
@@ -66,14 +62,11 @@ impl Material for Metal {
         let reflected = ray.dir.reflect(hit.normal) + fuzz;
         let mut scattered = Ray::new(hit.point, reflected, ray.time);
 
-        if scattered.dir.dot(hit.normal) > 0. {
-            Some(Scatter::new(self.albedo.clone(), scattered))
-        } else {
+        if scattered.dir.dot(hit.normal) <= 0. {
             // The fuzz scattered below the surface. Correct it.
             scattered.dir -= 2. * fuzz;
-            assert!(scattered.dir.dot(hit.normal) > 0.);
-            Some(Scatter::new(self.albedo.clone(), scattered))
         }
+        Some(Scatter::new(self.albedo.clone(), scattered))
     }
 }
 
@@ -117,7 +110,7 @@ impl Material for Dielectric {
 }
 
 #[derive(Debug)]
-/// Used for debugging
+/// Used for debugging. Sets albedo to black and the "scattered" ray to the incident ray.
 pub struct DbgBlack {}
 impl Material for DbgBlack {
     fn scatter(&self, ray: &Ray, _hit: &Hit, _rng: &mut CrateRng) -> Option<Scatter> {

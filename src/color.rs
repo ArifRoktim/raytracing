@@ -1,7 +1,5 @@
-use rand::{
-    distributions::{Distribution, Uniform},
-    Rng,
-};
+use rand::distributions::{Distribution, Uniform};
+use rand::Rng;
 use std::ops;
 
 use crate::CrateRng;
@@ -35,6 +33,7 @@ impl From<[f64; 3]> for Color {
     }
 }
 impl Default for Color {
+    /// Returns white
     fn default() -> Self {
         Self::new(1., 1., 1.)
     }

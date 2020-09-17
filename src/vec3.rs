@@ -1,5 +1,5 @@
-use rand_distr::{Distribution, Standard, Uniform};
 use rand::Rng;
+use rand_distr::{Distribution, Standard, Uniform};
 use std::ops;
 
 use crate::CrateRng;
@@ -232,7 +232,6 @@ pub enum Axis {
 }
 impl Distribution<Axis> for Standard {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Axis {
-        // TODO: Make distr static?
         let distr = Uniform::new(0u8, 3);
         match distr.sample(rng) {
             0 => Axis::X,
@@ -242,4 +241,3 @@ impl Distribution<Axis> for Standard {
         }
     }
 }
-
