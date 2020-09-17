@@ -71,12 +71,13 @@ fn main() {
 
             // Exit when threads are done.
             if rows == height {
-                println!("\nDone!");
                 break;
             }
         }
     });
 
+    // Time the render
+    let time = Instant::now();
     // Parallelize over each row
     screen.par_rows_mut().enumerate().for_each_init(
         // Give each spawned thread an rng and access to the row counter
@@ -104,6 +105,7 @@ fn main() {
             counter.fetch_add(1, Ordering::SeqCst);
         },
     );
+    let time = time.elapsed();
 
     // Display the screen
     let mut window = Window::new("Raytracing", width, height, WindowOptions::default()).unwrap();
@@ -116,6 +118,7 @@ fn main() {
     }
 
     progress.join().unwrap();
+    eprintln!("\nRending time elapsed: {:.2} seconds", time.as_secs_f64());
 }
 
 /// Iterative version of the diffuse ray calculation.
