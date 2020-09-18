@@ -29,7 +29,8 @@ const SAMPLES_PER_PIXEL: u16 = 100;
 const MAX_RAY_BOUNCES: u32 = 100;
 
 fn main() {
-    let mut rng = SmallRng::from_entropy();
+    // let mut rng = SmallRng::from_entropy();
+    let mut rng = SmallRng::seed_from_u64(0xabcdef);
 
     let width = DIM[0];
     let height = DIM[1];
@@ -76,14 +77,18 @@ fn main() {
         }
     });
 
+    let seed: u64 = rng.gen();
     // Time the render
     let time = Instant::now();
     // Parallelize over each row
-    screen.par_rows_mut().enumerate().for_each_init(
-        // Give each spawned thread an rng and access to the row counter
-        || (SmallRng::from_entropy(), rows_done.clone()),
-        |(rng, counter), (y, row)| {
+    screen
+        .par_rows_mut()
+        .enumerate()
+        .for_each_with(rows_done, |counter, (y, row)| {
             // Complete each row and then increment the counter.
+
+            // Initialize rng based off of row number
+            let mut rng = SmallRng::seed_from_u64((seed + 1) * y as u64);
             for (x, pix) in row.iter_mut().enumerate() {
                 let mut avg = Color::new(0., 0., 0.);
                 for _ in 0..SAMPLES_PER_PIXEL {
@@ -95,16 +100,15 @@ fn main() {
                     let i = (x as f64 + rand_i) / (width as f64 - 1.);
                     let j = 1. - (y as f64 + rand_j) / (height as f64 - 1.);
 
-                    let ray = camera.get_ray(i, j, rng);
-                    let sample = ray_color(&world, &ray, rng);
+                    let ray = camera.get_ray(i, j, &mut rng);
+                    let sample = ray_color(&world, &ray, &mut rng);
                     avg += sample;
                 }
                 avg /= SAMPLES_PER_PIXEL as f64;
                 *pix = avg;
             }
             counter.fetch_add(1, Ordering::SeqCst);
-        },
-    );
+        });
     let time = time.elapsed();
 
     // Display the screen
