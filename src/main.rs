@@ -5,6 +5,7 @@ use rayon::prelude::*;
 use raytracing::material::{Dielectric, Lambertian, Metal};
 use raytracing::shape::{MovingSphere, Sphere};
 use raytracing::{Camera, Color, CrateRng, HitList, Hittable, Ray, Screen, Vec3, BVH};
+use raytracing::config::global as CONFIG;
 use std::f64;
 use std::io::{self, Write};
 use std::sync::{
@@ -12,28 +13,16 @@ use std::sync::{
     Arc,
 };
 use std::thread;
-use std::time::{Duration, Instant};
-
-const UPDATE_DELAY: Duration = Duration::from_millis((1. / 30. * 1000.) as u64);
-const RESOLUTIONS: &[[usize; 2]] = &[
-    [384, 216],   // 0
-    [640, 360],   // 1
-    [1024, 576],  // 2
-    [1280, 720],  // 3
-    [1600, 900],  // 4
-    [1920, 1080], // 5
-];
-const DIM: [usize; 2] = RESOLUTIONS[2];
-const ANTIALIASING: bool = true;
-const SAMPLES_PER_PIXEL: u16 = 100;
-const MAX_RAY_BOUNCES: u32 = 100;
+use std::time::Instant;
 
 fn main() {
-    // let mut rng = SmallRng::from_entropy();
-    let mut rng = SmallRng::seed_from_u64(0xabcdef);
+    let mut rng = match CONFIG().seed {
+        Some(seed) => SmallRng::seed_from_u64(seed),
+        None => SmallRng::from_entropy()
+    };
 
-    let width = DIM[0];
-    let height = DIM[1];
+    let width = CONFIG().width;
+    let height = CONFIG().height;
     let camera = Camera::builder()
         .origin([13., 2., 3.])
         .look_at([0., 0., 0.])
@@ -54,8 +43,8 @@ fn main() {
         let mut time = Instant::now();
         loop {
             let delta = time.elapsed();
-            if delta < UPDATE_DELAY {
-                thread::sleep(UPDATE_DELAY - delta);
+            if delta < CONFIG().delay {
+                thread::sleep(CONFIG().delay - delta);
                 time = Instant::now();
             }
 
@@ -88,11 +77,12 @@ fn main() {
             // Complete each row and then increment the counter.
 
             // Initialize rng based off of row number
-            let mut rng = SmallRng::seed_from_u64((seed + 1) * y as u64);
+            let seed = seed.wrapping_add(1).wrapping_mul(y as u64);
+            let mut rng = SmallRng::seed_from_u64(seed);
             for (x, pix) in row.iter_mut().enumerate() {
                 let mut avg = Color::new(0., 0., 0.);
-                for _ in 0..SAMPLES_PER_PIXEL {
-                    let (rand_i, rand_j): (f64, f64) = if !ANTIALIASING {
+                for _ in 0..CONFIG().samples_per_pixel {
+                    let (rand_i, rand_j): (f64, f64) = if !CONFIG().antialias {
                         (0., 0.)
                     } else {
                         (rng.gen(), rng.gen())
@@ -104,7 +94,7 @@ fn main() {
                     let sample = ray_color(&world, &ray, &mut rng);
                     avg += sample;
                 }
-                avg /= SAMPLES_PER_PIXEL as f64;
+                avg /= CONFIG().samples_per_pixel as f64;
                 *pix = avg;
             }
             counter.fetch_add(1, Ordering::SeqCst);
@@ -113,7 +103,7 @@ fn main() {
 
     // Display the screen
     let mut window = Window::new("Raytracing", width, height, WindowOptions::default()).unwrap();
-    window.limit_update_rate(Some(UPDATE_DELAY));
+    window.limit_update_rate(Some(CONFIG().delay));
     let buffer = screen.encode();
     while window.is_open() && !window.is_key_down(Key::Escape) {
         window
@@ -130,7 +120,7 @@ fn main() {
 fn ray_color(world: &HitList, ray: &Ray, rng: &mut CrateRng) -> Color {
     let mut color = Color::default();
     let mut ray = ray.clone();
-    let mut bounces = MAX_RAY_BOUNCES;
+    let mut bounces = CONFIG().max_ray_depth;
 
     // NOTE: Tweak the beginning of the range to deal with shadow acne.
     while let Some(hit) = world.hit(&ray, &(0.001..f64::INFINITY)) {
