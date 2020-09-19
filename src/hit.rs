@@ -1,19 +1,22 @@
-use crate::shape::Dummy;
-use crate::{Axis, CrateRng, Material, Ray, Vec3};
-
-use rand::Rng;
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::mem;
 use std::ops::Range;
 
+use rand::Rng;
+
+use crate::shape::Dummy;
+use crate::{Axis, CrateRng, Material, Ray, Vec3};
+
 pub struct Hit<'a> {
     pub point: Vec3,
-    /// A unit normal vector
+    /// A unit-length normal vector
     pub normal: Vec3,
     /// Time of hit
-    pub t: f64,
+    pub time: f64,
+    /// Hit the front face or back face of object
     pub front_face: bool,
+    /// The material that was hit
     pub material: &'a dyn Material,
 }
 impl<'a> Hit<'a> {
@@ -27,7 +30,7 @@ impl<'a> Hit<'a> {
         Self {
             point,
             normal,
-            t,
+            time: t,
             front_face,
             material,
         }
@@ -51,8 +54,12 @@ impl<'a> Hit<'a> {
 }
 
 pub trait Hittable: Send + Sync + Debug {
-    fn hit(&self, ray: &Ray, range: &Range<f64>) -> Option<Hit>;
-    fn bounding_box(&self, range: &Range<f64>) -> Option<AABB>;
+    /// Returns the hit determined by a ray. If there is no hit or the hit's time isn't contained
+    /// by `hit_time`, returns `None`.
+    fn hit(&self, ray: &Ray, hit_time: &Range<f64>) -> Option<Hit>;
+    /// Returns the bounding box for the `Hittable`.  
+    /// `shutter_time` affects the bounding_box of moving `Hittable`s (e.g. `MovingSphere`).
+    fn bounding_box(&self, shutter_time: &Range<f64>) -> Option<AABB>;
 }
 
 #[derive(Default, Debug)]
@@ -62,31 +69,31 @@ impl HitList {
         Self(Vec::new())
     }
 
-    pub fn push<T: Hittable + Send + Sync + 'static>(&mut self, val: T) {
+    pub fn push<T: Hittable + 'static>(&mut self, val: T) {
         self.0.push(Box::new(val))
     }
 }
 impl Hittable for HitList {
-    fn hit(&self, ray: &Ray, range: &Range<f64>) -> Option<Hit> {
-        let mut range = range.clone();
+    fn hit(&self, ray: &Ray, hit_time: &Range<f64>) -> Option<Hit> {
+        let mut range = hit_time.clone();
         let mut closest = None;
         for obj in &self.0 {
             if let Some(hit) = obj.hit(ray, &range) {
-                range.end = hit.t;
+                range.end = hit.time;
                 closest = Some(hit);
             }
         }
         closest
     }
 
-    fn bounding_box(&self, range: &Range<f64>) -> Option<AABB> {
+    fn bounding_box(&self, shutter_time: &Range<f64>) -> Option<AABB> {
         if self.0.is_empty() {
             return None;
         }
 
         let mut ret_bound: Option<AABB> = None;
         for obj in &self.0 {
-            if let Some(bound_box) = obj.bounding_box(range) {
+            if let Some(bound_box) = obj.bounding_box(shutter_time) {
                 // Compute bounding box
                 if let Some(ret) = &mut ret_bound {
                     *ret = ret.surrounding(&bound_box);
@@ -130,8 +137,8 @@ impl AABB {
         AABB::new(small, big)
     }
 
-    pub fn hit(&self, ray: &Ray, range: &Range<f64>) -> bool {
-        let mut range = range.clone();
+    pub fn hit(&self, ray: &Ray, hit_time: &Range<f64>) -> bool {
+        let mut range = hit_time.clone();
 
         let mut hit = |axis| {
             let inv_dir = 1.0 / ray.dir[axis];
@@ -177,10 +184,10 @@ impl BVH {
     pub fn from(
         left: Box<dyn Hittable>,
         right: Box<dyn Hittable>,
-        shutter_range: &Range<f64>,
+        shutter_time: &Range<f64>,
     ) -> Self {
-        let l_box = left.bounding_box(shutter_range);
-        let r_box = right.bounding_box(shutter_range);
+        let l_box = left.bounding_box(shutter_time);
+        let r_box = right.bounding_box(shutter_time);
 
         let bound_box = match (l_box, r_box) {
             (Some(l_box), Some(r_box)) => l_box.surrounding(&r_box),
@@ -197,7 +204,7 @@ impl BVH {
     // Recursively create the tree
     fn inner_list(
         mut hitlist: Vec<Box<dyn Hittable>>,
-        shutter_range: &Range<f64>,
+        shutter_time: &Range<f64>,
         rng: &mut CrateRng,
     ) -> Self {
         let err_msg = "No bounding box in BVH construction!";
@@ -207,7 +214,7 @@ impl BVH {
             // Make the left node the Dummy so less work is done in BVH::hit()
             let left = Box::new(Dummy {});
             let right = hitlist.pop().unwrap();
-            let bound_box = right.bounding_box(shutter_range).expect(err_msg);
+            let bound_box = right.bounding_box(shutter_time).expect(err_msg);
             return Self::new(bound_box, left, right);
         }
 
@@ -218,28 +225,28 @@ impl BVH {
         } else {
             hitlist.sort_unstable_by(|a, b| {
                 let axis = rng.gen();
-                let a = a.bounding_box(shutter_range).expect(err_msg);
-                let b = b.bounding_box(shutter_range).expect(err_msg);
+                let a = a.bounding_box(shutter_time).expect(err_msg);
+                let b = b.bounding_box(shutter_time).expect(err_msg);
                 a.compare_axis(&b, axis)
             });
             let second_half = hitlist.split_off(hitlist.len() / 2);
-            left = Box::new(Self::inner_list(hitlist, shutter_range, rng));
-            right = Box::new(Self::inner_list(second_half, shutter_range, rng));
+            left = Box::new(Self::inner_list(hitlist, shutter_time, rng));
+            right = Box::new(Self::inner_list(second_half, shutter_time, rng));
         }
 
-        Self::from(left, right, shutter_range)
+        Self::from(left, right, shutter_time)
     }
 }
 impl Hittable for BVH {
-    fn hit(&self, ray: &Ray, range: &Range<f64>) -> Option<Hit> {
-        if !self.bound_box.hit(ray, range) {
+    fn hit(&self, ray: &Ray, hit_time: &Range<f64>) -> Option<Hit> {
+        if !self.bound_box.hit(ray, hit_time) {
             return None;
         }
 
-        let mut range = range.clone();
+        let mut range = hit_time.clone();
         let hit_left = if let Some(hit) = self.left.hit(ray, &range) {
             // Change range so next hit must be closer
-            range.end = hit.t;
+            range.end = hit.time;
             Some(hit)
         } else {
             None
@@ -252,7 +259,7 @@ impl Hittable for BVH {
         hit_left
     }
 
-    fn bounding_box(&self, _range: &Range<f64>) -> Option<AABB> {
+    fn bounding_box(&self, _shutter_time: &Range<f64>) -> Option<AABB> {
         Some(self.bound_box.clone())
     }
 }

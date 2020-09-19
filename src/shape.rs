@@ -1,6 +1,7 @@
-use crate::{Hit, Hittable, Material, Ray, Vec3, AABB};
 use std::fmt::Debug;
 use std::ops::Range;
+
+use crate::{Hit, Hittable, Material, Ray, Vec3, AABB};
 
 #[derive(Debug)]
 pub struct Sphere<T> {
@@ -20,8 +21,8 @@ impl<T> Sphere<T> {
         Self::new(c.into(), radius, material)
     }
 }
-impl<T: Material + Send + Sync + Debug> Hittable for Sphere<T> {
-    fn hit(&self, ray: &Ray, range: &Range<f64>) -> Option<Hit> {
+impl<T: Material> Hittable for Sphere<T> {
+    fn hit(&self, ray: &Ray, hit_time: &Range<f64>) -> Option<Hit> {
         let oc = ray.origin - self.center;
         let a = ray.dir.norm_squared();
         let half_b = oc.dot(ray.dir);
@@ -37,12 +38,12 @@ impl<T: Material + Send + Sync + Debug> Hittable for Sphere<T> {
             };
 
             let t = (-half_b - root) / a;
-            if range.contains(&t) {
+            if hit_time.contains(&t) {
                 return hit(t);
             }
 
             let t = (-half_b + root) / a;
-            if range.contains(&t) {
+            if hit_time.contains(&t) {
                 return hit(t);
             }
         }
@@ -50,46 +51,41 @@ impl<T: Material + Send + Sync + Debug> Hittable for Sphere<T> {
         None
     }
 
-    fn bounding_box(&self, _range: &Range<f64>) -> Option<AABB> {
+    fn bounding_box(&self, _shutter_time: &Range<f64>) -> Option<AABB> {
         let rad = Vec3::from([self.radius; 3]);
         Some(AABB::new(self.center - rad, self.center + rad))
     }
 }
 
-/// Sphere whose center moves from `c0` at `t0` to `c1` at `t1`
+/// Sphere whose center moves from `center_0` (at `time = 0.0`) to `center_1` (at `time = 1.0`).
 #[derive(Debug)]
 pub struct MovingSphere<T> {
-    pub c0: Vec3,
-    pub c1: Vec3,
-    // TODO: Get rid of t0 and t1 and just make c0 move to c1 from t=0 to t=1
-    pub t0: f64,
-    pub t1: f64,
-    pub radius: f64,
-    pub material: T,
+    center_0: Vec3,
+    delta_c: Vec3,
+    radius: f64,
+    material: T,
 }
 impl<T> MovingSphere<T> {
-    pub fn new(c0: Vec3, c1: Vec3, t0: f64, t1: f64, radius: f64, material: T) -> Self {
+    pub fn new(center_0: Vec3, center_1: Vec3, radius: f64, material: T) -> Self {
         Self {
-            c0,
-            c1,
-            t0,
-            t1,
+            center_0,
+            delta_c: center_1 - center_0,
             radius,
             material,
         }
     }
 
-    pub fn from(c0: [f64; 3], c1: [f64; 3], t0: f64, t1: f64, radius: f64, material: T) -> Self {
-        Self::new(c0.into(), c1.into(), t0, t1, radius, material)
+    pub fn from(c0: [f64; 3], c1: [f64; 3], radius: f64, material: T) -> Self {
+        Self::new(c0.into(), c1.into(), radius, material)
     }
 
-    // Returns the center at time `t`
-    pub fn center(&self, t: f64) -> Vec3 {
-        self.c0 + (self.c1 - self.c0) * (t - self.t0) / (self.t1 - self.t0)
+    // Returns the center at `time`
+    pub fn center(&self, time: f64) -> Vec3 {
+        self.center_0 + time * self.delta_c
     }
 }
-impl<T: Material + Send + Sync + Debug> Hittable for MovingSphere<T> {
-    fn hit(&self, ray: &Ray, range: &Range<f64>) -> Option<Hit> {
+impl<T: Material> Hittable for MovingSphere<T> {
+    fn hit(&self, ray: &Ray, hit_time: &Range<f64>) -> Option<Hit> {
         let center = self.center(ray.time);
 
         let oc = ray.origin - center;
@@ -107,12 +103,12 @@ impl<T: Material + Send + Sync + Debug> Hittable for MovingSphere<T> {
             };
 
             let t = (-half_b - root) / a;
-            if range.contains(&t) {
+            if hit_time.contains(&t) {
                 return hit(t);
             }
 
             let t = (-half_b + root) / a;
-            if range.contains(&t) {
+            if hit_time.contains(&t) {
                 return hit(t);
             }
         }
@@ -120,15 +116,15 @@ impl<T: Material + Send + Sync + Debug> Hittable for MovingSphere<T> {
         None
     }
 
-    fn bounding_box(&self, range: &Range<f64>) -> Option<AABB> {
+    fn bounding_box(&self, shutter_time: &Range<f64>) -> Option<AABB> {
         let rad = Vec3::from([self.radius; 3]);
         let aabb = AABB::new(
-            self.center(range.start) - rad,
-            self.center(range.start) + rad,
+            self.center(shutter_time.start) - rad,
+            self.center(shutter_time.start) + rad,
         );
         Some(aabb.surrounding(&AABB::new(
-            self.center(range.end) - rad,
-            self.center(range.end) + rad,
+            self.center(shutter_time.end) - rad,
+            self.center(shutter_time.end) + rad,
         )))
     }
 }
@@ -138,12 +134,12 @@ impl<T: Material + Send + Sync + Debug> Hittable for MovingSphere<T> {
 pub struct Dummy {}
 impl Hittable for Dummy {
     /// Dummy will never return a hit.
-    fn hit(&self, _ray: &Ray, _range: &Range<f64>) -> Option<Hit> {
+    fn hit(&self, _ray: &Ray, _hit_time: &Range<f64>) -> Option<Hit> {
         None
     }
 
     /// Bounding box isn't applicable for Dummy
-    fn bounding_box(&self, _range: &Range<f64>) -> Option<AABB> {
+    fn bounding_box(&self, _shutter_time: &Range<f64>) -> Option<AABB> {
         unimplemented!("Hittable::bounding_box is not applicable for Dummy!")
     }
 }

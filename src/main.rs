@@ -1,24 +1,23 @@
+use std::f64;
+use std::io::{self, Write};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::thread;
+use std::time::Instant;
+
 use minifb::{Key, Window, WindowOptions};
 use rand::{rngs::SmallRng, Rng, SeedableRng};
 use rayon::prelude::*;
 
+use raytracing::config::global as CONFIG;
 use raytracing::material::{Dielectric, Lambertian, Metal};
 use raytracing::shape::{MovingSphere, Sphere};
 use raytracing::{Camera, Color, CrateRng, HitList, Hittable, Ray, Screen, Vec3, BVH};
-use raytracing::config::global as CONFIG;
-use std::f64;
-use std::io::{self, Write};
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    Arc,
-};
-use std::thread;
-use std::time::Instant;
 
 fn main() {
     let mut rng = match CONFIG().seed {
         Some(seed) => SmallRng::seed_from_u64(seed),
-        None => SmallRng::from_entropy()
+        None => SmallRng::from_entropy(),
     };
 
     let width = CONFIG().width;
@@ -30,7 +29,7 @@ fn main() {
         .aspect_ratio(width as f64 / height as f64)
         .aperture(0.1)
         .focus_dist(10.)
-        .shutter_time(0., 1.)
+        .shutter_time(0.0..1.0)
         .build();
     let world = random_scene(&mut rng);
 
@@ -100,6 +99,8 @@ fn main() {
             counter.fetch_add(1, Ordering::SeqCst);
         });
     let time = time.elapsed();
+    progress.join().unwrap();
+    eprintln!("\nRending time elapsed: {:.2} seconds", time.as_secs_f64());
 
     // Display the screen
     let mut window = Window::new("Raytracing", width, height, WindowOptions::default()).unwrap();
@@ -110,9 +111,6 @@ fn main() {
             .update_with_buffer(&buffer, screen.width, screen.height)
             .unwrap();
     }
-
-    progress.join().unwrap();
-    eprintln!("\nRending time elapsed: {:.2} seconds", time.as_secs_f64());
 }
 
 /// Iterative version of the diffuse ray calculation.
@@ -169,7 +167,7 @@ fn random_scene(rng: &mut CrateRng) -> HitList {
                 // diffuse
                 let material = Lambertian::new(Color::rand(rng) * Color::rand(rng));
                 let center2 = center + Vec3::new(0., rng.gen_range(0., 0.5), 0.);
-                bvh_list.push(MovingSphere::new(center, center2, 0., 1., 0.2, material));
+                bvh_list.push(MovingSphere::new(center, center2, 0.2, material));
             } else if material < 0.95 {
                 // metal
                 let albedo = Color::rand_range(rng, 0.5, 1.);

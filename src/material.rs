@@ -1,5 +1,8 @@
-use crate::{Color, CrateRng, Hit, Ray, Vec3};
+use std::fmt::Debug;
+
 use rand::Rng;
+
+use crate::{Color, CrateRng, Hit, Ray, Vec3};
 
 /// A scattered ray and its color information
 pub struct Scatter {
@@ -12,7 +15,7 @@ impl Scatter {
     }
 }
 
-pub trait Material {
+pub trait Material: Send + Sync + Debug {
     /// A material will either absorb a ray (`None`) or scatter it.
     fn scatter(&self, ray: &Ray, hit: &Hit, rng: &mut CrateRng) -> Option<Scatter>;
 }
@@ -35,7 +38,6 @@ impl Material for Lambertian {
     fn scatter(&self, ray: &Ray, hit: &Hit, rng: &mut CrateRng) -> Option<Scatter> {
         let scatter_dir = hit.normal + Vec3::rand_unit_sphere(rng);
         let scattered = Ray::new(hit.point, scatter_dir, ray.time);
-        // TODO: Make `Scatter` carry a reference to albedo instead of cloning it
         Some(Scatter::new(self.albedo.clone(), scattered))
     }
 }
@@ -63,6 +65,7 @@ impl Material for Metal {
         let mut scattered = Ray::new(hit.point, reflected, ray.time);
 
         if scattered.dir.dot(hit.normal) <= 0. {
+            // NOTE: Deviating from the book here.
             // The fuzz scattered below the surface. Correct it.
             scattered.dir -= 2. * fuzz;
         }

@@ -1,6 +1,7 @@
+use std::ops;
+
 use rand::Rng;
 use rand_distr::{Distribution, Standard, Uniform};
-use std::ops;
 
 use crate::CrateRng;
 
@@ -32,11 +33,12 @@ impl Vec3 {
         v / v.norm()
     }
 
+    /// Samples uniformly from the surface of the unit sphere in three dimensions.
     pub fn rand_unit_sphere(rng: &mut CrateRng) -> Self {
-        let ret = rand_distr::UnitSphere.sample(rng);
-        Self::new(ret[0], ret[1], ret[2])
+        rand_distr::UnitSphere.sample(rng).into()
     }
 
+    /// Samples uniformly from the unit disc in the `x` and `y` dimensions. `z` is 0.
     pub fn rand_unit_disk(rng: &mut CrateRng) -> Self {
         let ret = rand_distr::UnitDisc.sample(rng);
         Self::new(ret[0], ret[1], 0.)

@@ -1,7 +1,9 @@
-use crate::{Color, CrateRng, Ray, Vec3};
+use std::ops::Range;
+
 use rand::distributions::{Distribution, Uniform};
 use rayon::prelude::*;
-use std::ops::Range;
+
+use crate::{Color, CrateRng, Ray, Vec3};
 
 pub struct Screen {
     pub width: usize,
@@ -154,16 +156,16 @@ impl CameraBuilder {
         self.view_up = view_up.into();
         self
     }
-    pub fn aperture(&mut self, aperture: f64) -> &mut Self {
-        self.aperture = Some(aperture);
+    pub fn aperture<T: Into<Option<f64>>>(&mut self, aperture: T) -> &mut Self {
+        self.aperture = aperture.into();
         self
     }
-    pub fn focus_dist(&mut self, dist: f64) -> &mut Self {
-        self.focus_dist = Some(dist);
+    pub fn focus_dist<T: Into<Option<f64>>>(&mut self, dist: T) -> &mut Self {
+        self.focus_dist = dist.into();
         self
     }
-    pub fn shutter_time(&mut self, start: f64, end: f64) -> &mut Self {
-        self.shutter_time = Some(Range { start, end });
+    pub fn shutter_time<T: Into<Option<Range<f64>>>>(&mut self, range: T) -> &mut Self {
+        self.shutter_time = range.into();
         self
     }
 }

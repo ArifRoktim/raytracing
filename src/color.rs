@@ -1,6 +1,7 @@
+use std::ops;
+
 use rand::distributions::{Distribution, Uniform};
 use rand::Rng;
-use std::ops;
 
 use crate::CrateRng;
 
