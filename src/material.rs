@@ -20,25 +20,30 @@ pub trait Material: Send + Sync + Debug {
     fn scatter(&self, ray: &Ray, hit: &Hit, rng: &mut CrateRng) -> Option<Scatter>;
 }
 
+pub trait Texture: Send + Sync + Debug {
+    fn value(&self, u: f64, v: f64, point: Vec3) -> Color;
+}
+
 #[derive(Debug)]
 /// Diffuse reflection
 pub struct Lambertian {
-    pub albedo: Color,
+    // pub albedo: Color,
+    // TODO: Optimize by replacing with an Enum
+    pub albedo: Box<dyn Texture>,
 }
 impl Lambertian {
-    pub fn new(albedo: Color) -> Self {
-        Self { albedo }
-    }
-
-    pub fn from(a: [f64; 3]) -> Self {
-        Self::new(a.into())
+    pub fn new<T: Texture + 'static>(albedo: T) -> Self {
+        Self {
+            albedo: Box::new(albedo),
+        }
     }
 }
 impl Material for Lambertian {
     fn scatter(&self, ray: &Ray, hit: &Hit, rng: &mut CrateRng) -> Option<Scatter> {
         let scatter_dir = hit.normal + Vec3::rand_unit_sphere(rng);
         let scattered = Ray::new(hit.point, scatter_dir, ray.time);
-        Some(Scatter::new(self.albedo.clone(), scattered))
+        let albedo = self.albedo.value(hit.u, hit.v, hit.point);
+        Some(Scatter::new(albedo, scattered))
     }
 }
 
@@ -69,7 +74,7 @@ impl Material for Metal {
             // The fuzz scattered below the surface. Correct it.
             scattered.dir -= 2. * fuzz;
         }
-        Some(Scatter::new(self.albedo.clone(), scattered))
+        Some(Scatter::new(self.albedo, scattered))
     }
 }
 

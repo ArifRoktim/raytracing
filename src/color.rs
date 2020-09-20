@@ -3,10 +3,10 @@ use std::ops;
 use rand::distributions::{Distribution, Uniform};
 use rand::Rng;
 
-use crate::CrateRng;
+use crate::{CrateRng, Texture};
 
 /// Each color value ranges from 0.0 to 1.0, where 1.0 is full brightness
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct Color {
     pub r: f64,
     pub g: f64,
@@ -28,6 +28,12 @@ impl Color {
         albedo.into()
     }
 }
+impl Texture for Color {
+    fn value(&self, _u: f64, _v: f64, _point: crate::Vec3) -> Color {
+        *self
+    }
+}
+
 impl From<[f64; 3]> for Color {
     fn from(a: [f64; 3]) -> Self {
         Self::new(a[0], a[1], a[2])

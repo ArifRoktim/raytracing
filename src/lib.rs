@@ -9,7 +9,7 @@ pub mod vec3;
 pub use color::Color;
 pub use config::Config;
 pub use hit::{Hit, HitList, Hittable, AABB, BVH};
-pub use material::{Material, Scatter};
+pub use material::{Material, Scatter, Texture};
 pub use screen::{Camera, CameraBuilder, Screen};
 pub use vec3::{Axis, Vec3};
 

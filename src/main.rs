@@ -151,7 +151,7 @@ fn random_scene(rng: &mut CrateRng) -> HitList {
     world.push(Sphere::from(
         [0., -1000., 0.],
         1000.,
-        Lambertian::from([0.5; 3]),
+        Lambertian::new(Color::from([0.5; 3])),
     ));
 
     let mut bvh_list = HitList::new();
@@ -184,7 +184,7 @@ fn random_scene(rng: &mut CrateRng) -> HitList {
     bvh_list.push(Sphere::from(
         [-4., 1., 0.],
         1.,
-        Lambertian::from([0.4, 0.2, 0.1]),
+        Lambertian::new(Color::new(0.4, 0.2, 0.1)),
     ));
     bvh_list.push(Sphere::from(
         [4., 1., 0.],

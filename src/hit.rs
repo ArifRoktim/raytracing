@@ -18,6 +18,8 @@ pub struct Hit<'a> {
     pub front_face: bool,
     /// The material that was hit
     pub material: &'a dyn Material,
+    pub u: f64,
+    pub v: f64,
 }
 impl<'a> Hit<'a> {
     pub fn new(
@@ -26,6 +28,8 @@ impl<'a> Hit<'a> {
         t: f64,
         front_face: bool,
         material: &'a dyn Material,
+        u: f64,
+        v: f64,
     ) -> Self {
         Self {
             point,
@@ -33,6 +37,8 @@ impl<'a> Hit<'a> {
             time: t,
             front_face,
             material,
+            u,
+            v,
         }
     }
 
@@ -42,6 +48,8 @@ impl<'a> Hit<'a> {
         t: f64,
         ray: &Ray,
         material: &'a dyn Material,
+        u: f64,
+        v: f64,
     ) -> Self {
         // Dot product is negative when ray hits back face
         let front_face = ray.dir.dot(normal) < 0.;
@@ -49,7 +57,7 @@ impl<'a> Hit<'a> {
         if !front_face {
             normal *= -1.;
         }
-        Self::new(point, normal, t, front_face, material)
+        Self::new(point, normal, t, front_face, material, u, v)
     }
 }
 
