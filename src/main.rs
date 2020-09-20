@@ -10,7 +10,7 @@ use rand::{rngs::SmallRng, Rng, SeedableRng};
 use rayon::prelude::*;
 
 use raytracing::config::global as CONFIG;
-use raytracing::material::{Dielectric, Lambertian, Metal};
+use raytracing::material::{Checkered, Dielectric, Lambertian, Metal};
 use raytracing::shape::{MovingSphere, Sphere};
 use raytracing::{Camera, Color, CrateRng, HitList, Hittable, Ray, Screen, Vec3, BVH};
 
@@ -148,10 +148,11 @@ fn ray_color(world: &HitList, ray: &Ray, rng: &mut CrateRng) -> Color {
 
 fn random_scene(rng: &mut CrateRng) -> HitList {
     let mut world = HitList::new();
+    let checker = Checkered::color([0.2, 0.3, 0.1], [0.9, 0.9, 0.9]);
     world.push(Sphere::from(
         [0., -1000., 0.],
         1000.,
-        Lambertian::from([0.5; 3]),
+        Lambertian::new(checker),
     ));
 
     let mut bvh_list = HitList::new();
@@ -184,7 +185,7 @@ fn random_scene(rng: &mut CrateRng) -> HitList {
     bvh_list.push(Sphere::from(
         [-4., 1., 0.],
         1.,
-        Lambertian::from([0.4, 0.2, 0.1]),
+        Lambertian::new(Color::new(0.4, 0.2, 0.1)),
     ));
     bvh_list.push(Sphere::from(
         [4., 1., 0.],

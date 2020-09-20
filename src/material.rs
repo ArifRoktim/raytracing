@@ -23,22 +23,22 @@ pub trait Material: Send + Sync + Debug {
 #[derive(Debug)]
 /// Diffuse reflection
 pub struct Lambertian {
-    pub albedo: Color,
+    // TODO: Optimize by replacing with an Enum
+    pub albedo: Box<dyn Texture>,
 }
 impl Lambertian {
-    pub fn new(albedo: Color) -> Self {
-        Self { albedo }
-    }
-
-    pub fn from(a: [f64; 3]) -> Self {
-        Self::new(a.into())
+    pub fn new<T: Texture + 'static>(albedo: T) -> Self {
+        Self {
+            albedo: Box::new(albedo),
+        }
     }
 }
 impl Material for Lambertian {
     fn scatter(&self, ray: &Ray, hit: &Hit, rng: &mut CrateRng) -> Option<Scatter> {
         let scatter_dir = hit.normal + Vec3::rand_unit_sphere(rng);
         let scattered = Ray::new(hit.point, scatter_dir, ray.time);
-        Some(Scatter::new(self.albedo.clone(), scattered))
+        let albedo = self.albedo.value(hit.u, hit.v, hit.point);
+        Some(Scatter::new(albedo, scattered))
     }
 }
 
@@ -69,7 +69,7 @@ impl Material for Metal {
             // The fuzz scattered below the surface. Correct it.
             scattered.dir -= 2. * fuzz;
         }
-        Some(Scatter::new(self.albedo.clone(), scattered))
+        Some(Scatter::new(self.albedo, scattered))
     }
 }
 
@@ -119,5 +119,43 @@ impl Material for DbgBlack {
     fn scatter(&self, ray: &Ray, _hit: &Hit, _rng: &mut CrateRng) -> Option<Scatter> {
         // Just return the in-ray with albedo set to black
         Some(Scatter::new(Color::new(0., 0., 0.), ray.clone()))
+    }
+}
+
+pub trait Texture: Send + Sync + Debug {
+    fn value(&self, u: f64, v: f64, point: Vec3) -> Color;
+}
+
+#[derive(Debug)]
+pub struct Checkered {
+    pub odd: Box<dyn Texture>,
+    pub even: Box<dyn Texture>,
+}
+impl Checkered {
+    pub fn new<T: Texture + 'static, U: Texture + 'static>(odd: T, even: U) -> Self {
+        Self {
+            even: Box::new(even),
+            odd: Box::new(odd),
+        }
+    }
+
+    pub fn color<T: Into<Color>, U: Into<Color>>(odd: T, even: U) -> Self {
+        Self {
+            even: Box::new(even.into()),
+            odd: Box::new(odd.into()),
+        }
+    }
+}
+
+impl Texture for Checkered {
+    fn value(&self, u: f64, v: f64, point: Vec3) -> Color {
+        let freq = 10.;
+        // TODO: Optimize maybe, since we only need the signs, not the actual products
+        let sines = (point.x * freq).sin() * (point.y * freq).sin() * (point.z * freq).sin();
+        if sines < 0. {
+            self.odd.value(u, v, point)
+        } else {
+            self.even.value(u, v, point)
+        }
     }
 }

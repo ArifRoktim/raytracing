@@ -1,7 +1,17 @@
+use std::f64::consts::PI;
 use std::fmt::Debug;
 use std::ops::Range;
 
 use crate::{Hit, Hittable, Material, Ray, Vec3, AABB};
+
+fn sphere_uv(point: Vec3, center: Vec3, radius: f64) -> (f64, f64) {
+    let p: Vec3 = (point - center) / radius;
+    let phi = p.z.atan2(p.x);
+    let theta = p.y.asin();
+    let u = 1. - (phi + PI) / (2. * PI);
+    let v = (theta + PI / 2.) / PI;
+    (u, v)
+}
 
 #[derive(Debug)]
 pub struct Sphere<T> {
@@ -34,7 +44,10 @@ impl<T: Material> Hittable for Sphere<T> {
             let hit = |t| {
                 let point = ray.at(t);
                 let outward_normal = (point - self.center) / self.radius;
-                Some(Hit::ray(point, outward_normal, t, ray, &self.material))
+                let (u, v) = sphere_uv(point, self.center, self.radius);
+
+                let ret = Hit::ray(point, outward_normal, t, ray, &self.material, u, v);
+                Some(ret)
             };
 
             let t = (-half_b - root) / a;
@@ -99,7 +112,10 @@ impl<T: Material> Hittable for MovingSphere<T> {
             let hit = |t| {
                 let point = ray.at(t);
                 let outward_normal = (point - center) / self.radius;
-                Some(Hit::ray(point, outward_normal, t, ray, &self.material))
+                let (u, v) = sphere_uv(point, center, self.radius);
+
+                let ret = Hit::ray(point, outward_normal, t, ray, &self.material, u, v);
+                Some(ret)
             };
 
             let t = (-half_b - root) / a;
