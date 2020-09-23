@@ -9,29 +9,21 @@ use minifb::{Key, Window, WindowOptions};
 use rand::{rngs::SmallRng, Rng, SeedableRng};
 use rayon::prelude::*;
 
-use raytracing::config::global as CONFIG;
-use raytracing::material::{Checkered, Dielectric, Lambertian, Metal};
-use raytracing::shape::{MovingSphere, Sphere};
-use raytracing::{Camera, Color, CrateRng, HitList, Hittable, Ray, Screen, Vec3, BVH};
+use raytracing::config;
+use raytracing::{Color, CrateRng, HitList, Hittable, Ray, Screen, Vec3};
 
 fn main() {
-    let mut rng = match CONFIG().seed {
+    #[allow(non_snake_case)]
+    let CFG: &'static _ = config::GLOBAL();
+
+    let mut rng = match CFG.seed {
         Some(seed) => SmallRng::seed_from_u64(seed),
         None => SmallRng::from_entropy(),
     };
 
-    let width = CONFIG().width;
-    let height = CONFIG().height;
-    let camera = Camera::builder()
-        .origin([13., 2., 3.])
-        .look_at([0., 0., 0.])
-        .vfov_degrees(20.)
-        .aspect_ratio(width as f64 / height as f64)
-        .aperture(0.1)
-        .focus_dist(10.)
-        .shutter_time(0.0..1.0)
-        .build();
-    let world = random_scene(&mut rng);
+    let width = CFG.width;
+    let height = CFG.height;
+    let (camera, world) = CFG.scene.create(&mut rng);
 
     let mut screen = Screen::new(width, height);
     let rows_done = Arc::new(AtomicUsize::new(0));
@@ -42,8 +34,8 @@ fn main() {
         let mut time = Instant::now();
         loop {
             let delta = time.elapsed();
-            if delta < CONFIG().delay {
-                thread::sleep(CONFIG().delay - delta);
+            if delta < CFG.delay {
+                thread::sleep(CFG.delay - delta);
                 time = Instant::now();
             }
 
@@ -80,8 +72,8 @@ fn main() {
             let mut rng = SmallRng::seed_from_u64(seed);
             for (x, pix) in row.iter_mut().enumerate() {
                 let mut avg = Color::new(0., 0., 0.);
-                for _ in 0..CONFIG().samples_per_pixel {
-                    let (rand_i, rand_j): (f64, f64) = if !CONFIG().antialias {
+                for _ in 0..CFG.samples_per_pixel {
+                    let (rand_i, rand_j): (f64, f64) = if !CFG.antialias {
                         (0., 0.)
                     } else {
                         (rng.gen(), rng.gen())
@@ -93,7 +85,7 @@ fn main() {
                     let sample = ray_color(&world, &ray, &mut rng);
                     avg += sample;
                 }
-                avg /= CONFIG().samples_per_pixel as f64;
+                avg /= CFG.samples_per_pixel as f64;
                 *pix = avg;
             }
             counter.fetch_add(1, Ordering::SeqCst);
@@ -104,7 +96,7 @@ fn main() {
 
     // Display the screen
     let mut window = Window::new("Raytracing", width, height, WindowOptions::default()).unwrap();
-    window.limit_update_rate(Some(CONFIG().delay));
+    window.limit_update_rate(Some(CFG.delay));
     let buffer = screen.encode();
     while window.is_open() && !window.is_key_down(Key::Escape) {
         window
@@ -118,7 +110,7 @@ fn main() {
 fn ray_color(world: &HitList, ray: &Ray, rng: &mut CrateRng) -> Color {
     let mut color = Color::default();
     let mut ray = ray.clone();
-    let mut bounces = CONFIG().max_ray_depth;
+    let mut bounces = config::GLOBAL().max_ray_depth;
 
     // NOTE: Tweak the beginning of the range to deal with shadow acne.
     while let Some(hit) = world.hit(&ray, &(0.001..f64::INFINITY)) {
@@ -144,57 +136,4 @@ fn ray_color(world: &HitList, ray: &Ray, rng: &mut CrateRng) -> Color {
     let sky = (1. - t) * Color::new(1., 1., 1.) + t * Color::new(0.5, 0.7, 1.);
 
     sky * color
-}
-
-fn random_scene(rng: &mut CrateRng) -> HitList {
-    let mut world = HitList::new();
-    let checker = Checkered::color([0.2, 0.3, 0.1], [0.9, 0.9, 0.9]);
-    world.push(Sphere::from(
-        [0., -1000., 0.],
-        1000.,
-        Lambertian::new(checker),
-    ));
-
-    let mut bvh_list = HitList::new();
-    for a in -11..11 {
-        for b in -11..11 {
-            let (x, z) = (0.9 * rng.gen::<f64>(), 0.9 * rng.gen::<f64>());
-            let center = Vec3::new(a as f64 + x, 0.2, b as f64 + z);
-            if (center - Vec3::new(4., 0.2, 0.)).norm() <= 0.9 {
-                continue;
-            }
-            let material = rng.gen::<f64>();
-            if material < 0.8 {
-                // diffuse
-                let material = Lambertian::new(Color::rand(rng) * Color::rand(rng));
-                let center2 = center + Vec3::new(0., rng.gen_range(0., 0.5), 0.);
-                bvh_list.push(MovingSphere::new(center, center2, 0.2, material));
-            } else if material < 0.95 {
-                // metal
-                let albedo = Color::rand_range(rng, 0.5, 1.);
-                let fuzz = rng.gen_range(0., 0.5);
-                bvh_list.push(Sphere::new(center, 0.2, Metal::new(albedo, fuzz)));
-            } else {
-                // glass
-                bvh_list.push(Sphere::new(center, 0.2, Dielectric::new(1.5)));
-            }
-        }
-    }
-
-    bvh_list.push(Sphere::from([0., 1., 0.], 1., Dielectric::new(1.5)));
-    bvh_list.push(Sphere::from(
-        [-4., 1., 0.],
-        1.,
-        Lambertian::new(Color::new(0.4, 0.2, 0.1)),
-    ));
-    bvh_list.push(Sphere::from(
-        [4., 1., 0.],
-        1.,
-        Metal::from([0.7, 0.6, 0.5], 0.0),
-    ));
-
-    let bvh = BVH::from_list(bvh_list, &(0.0..1.), rng);
-    world.push(bvh);
-
-    world
 }

@@ -122,6 +122,7 @@ impl Material for DbgBlack {
     }
 }
 
+// ===Textures===
 pub trait Texture: Send + Sync + Debug {
     fn value(&self, u: f64, v: f64, point: Vec3) -> Color;
 }
