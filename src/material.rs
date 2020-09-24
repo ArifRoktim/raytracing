@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 
+use dyn_clone::DynClone;
 use rand::Rng;
 
 use crate::{Color, CrateRng, Hit, Ray, Vec3};
@@ -15,7 +16,7 @@ impl Scatter {
     }
 }
 
-pub trait Material: Send + Sync + Debug {
+pub trait Material: Sync + Debug {
     /// A material will either absorb a ray (`None`) or scatter it.
     fn scatter(&self, ray: &Ray, hit: &Hit, rng: &mut CrateRng) -> Option<Scatter>;
 }
@@ -122,12 +123,13 @@ impl Material for DbgBlack {
     }
 }
 
-// ===Textures===
-pub trait Texture: Send + Sync + Debug {
+// ===== Textures =====
+pub trait Texture: Sync + Debug + DynClone {
     fn value(&self, u: f64, v: f64, point: Vec3) -> Color;
 }
+dyn_clone::clone_trait_object!(Texture);
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Checkered {
     pub odd: Box<dyn Texture>,
     pub even: Box<dyn Texture>,
@@ -147,7 +149,6 @@ impl Checkered {
         }
     }
 }
-
 impl Texture for Checkered {
     fn value(&self, u: f64, v: f64, point: Vec3) -> Color {
         let freq = 10.;
