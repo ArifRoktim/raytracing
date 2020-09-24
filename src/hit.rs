@@ -61,7 +61,7 @@ impl<'a> Hit<'a> {
     }
 }
 
-pub trait Hittable: Send + Sync + Debug {
+pub trait Hittable: Sync + Debug {
     /// Returns the hit determined by a ray. If there is no hit or the hit's time isn't contained
     /// by `hit_time`, returns `None`.
     fn hit(&self, ray: &Ray, hit_time: &Range<f64>) -> Option<Hit>;

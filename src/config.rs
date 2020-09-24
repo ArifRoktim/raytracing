@@ -67,26 +67,46 @@ fn invert_bool(i: u64) -> bool {
 #[derive(Copy, Clone, Debug, EnumString, EnumVariantNames, PartialEq)]
 pub enum Scene {
     Random,
+    TwoSpheres,
+    Balls,
 }
 
 impl Scene {
     pub fn create(self, rng: &mut CrateRng) -> (Camera, HitList) {
-        #[allow(non_snake_case)]
-        let CFG: &'static _ = GLOBAL();
+        (self.camera(), self.world(rng))
+    }
 
+    pub fn camera(self) -> Camera {
         use Scene::*;
+
+        match self {
+            Random => Camera::builder()
+                .origin([13., 2., 3.])
+                .look_at([0., 0., 0.])
+                .vfov_degrees(20.)
+                .aperture(0.1)
+                .focus_dist(10.)
+                .shutter_time(0.0..1.0)
+                .build(),
+            TwoSpheres => Camera::builder()
+                .origin([13., 2., 3.])
+                .look_at([0., 0., 0.])
+                .vfov_degrees(20.)
+                .focus_dist(10.)
+                .build(),
+            Balls => Camera::builder()
+                .origin([-2., 1.5, 1.])
+                .look_at([-0.2, 0., -1.2])
+                .vfov_degrees(40.)
+                .build(),
+        }
+    }
+
+    pub fn world(self, rng: &mut CrateRng) -> HitList {
+        use Scene::*;
+
         match self {
             Random => {
-                let camera = Camera::builder()
-                    .origin([13., 2., 3.])
-                    .look_at([0., 0., 0.])
-                    .vfov_degrees(20.)
-                    .aspect_ratio(CFG.width as f64 / CFG.height as f64)
-                    .aperture(0.1)
-                    .focus_dist(10.)
-                    .shutter_time(0.0..1.0)
-                    .build();
-
                 let mut world = HitList::new();
                 let checker = Checkered::color([0.2, 0.3, 0.1], [0.9, 0.9, 0.9]);
                 world.push(Sphere::from(
@@ -136,7 +156,51 @@ impl Scene {
                 let bvh = BVH::from_list(bvh_list, &(0.0..1.), rng);
                 world.push(bvh);
 
-                (camera, world)
+                world
+            }
+            TwoSpheres => {
+                let mut world = HitList::new();
+                let checker = Checkered::color([0.2, 0.3, 0.1], [0.9, 0.9, 0.9]);
+                world.push(Sphere::from(
+                    [0., -10., 0.],
+                    10.,
+                    Lambertian::new(checker.clone()),
+                ));
+                world.push(Sphere::from([0., 10., 0.], 10., Lambertian::new(checker)));
+
+                world
+            }
+            Balls => {
+                let mut world = HitList::new();
+                world.push(Sphere::from(
+                    [0., -100.5, -1.],
+                    100.,
+                    Lambertian::new(Color::new(0.8, 0.8, 0.)),
+                ));
+                world.push(Sphere::from([0., 0., -1.], 0.5, Dielectric::new(1.5)));
+                world.push(Sphere::from(
+                    [1.5, 0., -1.],
+                    0.5,
+                    Metal::from([0.8, 0.6, 0.2], 0.),
+                ));
+                world.push(Sphere::from(
+                    [-1.05, 0., -1.],
+                    0.5,
+                    Lambertian::new(Color::new(0.1, 0.2, 0.5)),
+                ));
+
+                world.push(Sphere::from(
+                    [1.5, 0., -2.5],
+                    0.5,
+                    Metal::from([0.8, 0.6, 0.2], 0.),
+                ));
+                world.push(Sphere::from(
+                    [-1.05, 0., -2.5],
+                    0.5,
+                    Lambertian::new(Color::new(0.1, 0.2, 0.5)),
+                ));
+
+                world
             }
         }
     }
@@ -147,15 +211,18 @@ mod parse_test {
     use super::*;
 
     #[test]
-    #[allow(non_snake_case)]
-    fn Random() {
-        let scene = "Random".parse::<Scene>().unwrap();
-        assert_eq!(scene, Scene::Random);
+    fn right_case() {
+        assert_eq!("Random".parse::<Scene>().unwrap(), Scene::Random);
+        assert_eq!("TwoSpheres".parse::<Scene>().unwrap(), Scene::TwoSpheres);
     }
 
     #[test]
-    #[should_panic]
-    fn random() {
-        let _scene = "random".parse::<Scene>().unwrap();
+    fn wrong_case() {
+        "random".parse::<Scene>().unwrap_err();
+        "rANDOM".parse::<Scene>().unwrap_err();
+        "twospheres".parse::<Scene>().unwrap_err();
+        "two-spheres".parse::<Scene>().unwrap_err();
+        "two_spheres".parse::<Scene>().unwrap_err();
+        "Two_spheres".parse::<Scene>().unwrap_err();
     }
 }

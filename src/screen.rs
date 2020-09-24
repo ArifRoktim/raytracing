@@ -3,7 +3,7 @@ use std::ops::Range;
 use rand::distributions::{Distribution, Uniform};
 use rayon::prelude::*;
 
-use crate::{Color, CrateRng, Ray, Vec3};
+use crate::{config, Color, CrateRng, Ray, Vec3};
 
 pub struct Screen {
     pub width: usize,
@@ -135,7 +135,7 @@ impl CameraBuilder {
             w,
         }
     }
-    // ===Builder Methods===
+    // ===== Builder Methods =====
     pub fn origin<T: Into<Vec3>>(&mut self, origin: T) -> &mut Self {
         self.origin = origin.into();
         self
@@ -156,14 +156,17 @@ impl CameraBuilder {
         self.view_up = view_up.into();
         self
     }
+    /// Used for depth of field. Set to `None` to disable depth of field.
     pub fn aperture<T: Into<Option<f64>>>(&mut self, aperture: T) -> &mut Self {
         self.aperture = aperture.into();
         self
     }
+    /// If None, defaults to magnitude of vector between `origin` and `look_at`.
     pub fn focus_dist<T: Into<Option<f64>>>(&mut self, dist: T) -> &mut Self {
         self.focus_dist = dist.into();
         self
     }
+    /// Used for motion blur. Set to `None` to disable.
     pub fn shutter_time<T: Into<Option<Range<f64>>>>(&mut self, range: T) -> &mut Self {
         self.shutter_time = range.into();
         self
@@ -171,12 +174,14 @@ impl CameraBuilder {
 }
 impl Default for CameraBuilder {
     fn default() -> Self {
+        let width = config::GLOBAL().width as f64;
+        let height = config::GLOBAL().height as f64;
         Self {
             origin: Vec3::ORIGIN,
             look_at: Vec3::new(0., 0., -1.),
             view_up: Vec3::UNIT_Y,
             vfov_degrees: 60.,
-            aspect_ratio: 16. / 9.,
+            aspect_ratio: width / height,
             aperture: None,
             focus_dist: None,
             shutter_time: None,
