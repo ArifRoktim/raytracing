@@ -29,9 +29,8 @@ pub struct Lambertian {
 }
 impl Lambertian {
     pub fn new<T: Texture + 'static>(albedo: T) -> Self {
-        Self {
-            albedo: Box::new(albedo),
-        }
+        let albedo = Box::new(albedo);
+        Self { albedo }
     }
 }
 impl Material for Lambertian {
@@ -45,18 +44,15 @@ impl Material for Lambertian {
 
 #[derive(Debug)]
 pub struct Metal {
-    pub albedo: Color,
+    pub albedo: Box<dyn Texture>,
     /// The fuzziness of the Metal. Is between `0.0` and `1.0`
     pub fuzz: f64,
 }
 impl Metal {
-    pub fn new(albedo: Color, fuzz: f64) -> Self {
+    pub fn new<T: Texture + 'static>(albedo: T, fuzz: f64) -> Self {
+        let albedo = Box::new(albedo);
         let fuzz = fuzz.min(1.);
         Self { albedo, fuzz }
-    }
-
-    pub fn from(a: [f64; 3], fuzz: f64) -> Self {
-        Self::new(a.into(), fuzz)
     }
 }
 impl Material for Metal {
@@ -70,7 +66,8 @@ impl Material for Metal {
             // The fuzz scattered below the surface. Correct it.
             scattered.dir -= 2. * fuzz;
         }
-        Some(Scatter::new(self.albedo, scattered))
+        let albedo = self.albedo.value(hit.u, hit.v, hit.point);
+        Some(Scatter::new(albedo, scattered))
     }
 }
 

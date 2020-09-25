@@ -150,7 +150,7 @@ impl Scene {
                 bvh_list.push(Sphere::from(
                     [4., 1., 0.],
                     1.,
-                    Metal::from([0.7, 0.6, 0.5], 0.0),
+                    Metal::new(Color::new(0.7, 0.6, 0.5), 0.0),
                 ));
 
                 let bvh = BVH::from_list(bvh_list, &(0.0..1.), rng);
@@ -172,32 +172,35 @@ impl Scene {
             }
             Balls => {
                 let mut world = HitList::new();
+                let blue = Color::new(0.2, 0.3, 1.0);
+                let amber = Color::new(0.8, 0.6, 0.2);
+                let bronze = Color::new(0.71, 0.42, 0.18);
+
                 world.push(Sphere::from(
                     [0., -100.5, -1.],
                     100.,
-                    Lambertian::new(Color::new(0.8, 0.8, 0.)),
+                    Lambertian::new(Color::new(0.8, 0.8, 0.1)),
                 ));
                 world.push(Sphere::from([0., 0., -1.], 0.5, Dielectric::new(1.5)));
+                world.push(Sphere::from([-1.05, 0., -1.], 0.5, Lambertian::new(blue)));
                 world.push(Sphere::from(
                     [1.5, 0., -1.],
                     0.5,
-                    Metal::from([0.8, 0.6, 0.2], 0.),
-                ));
-                world.push(Sphere::from(
-                    [-1.05, 0., -1.],
-                    0.5,
-                    Lambertian::new(Color::new(0.1, 0.2, 0.5)),
+                    // Metal::new(amber, 0.)
+                    Metal::new(Checkered::new(bronze, amber), 0.),
                 ));
 
                 world.push(Sphere::from(
                     [1.5, 0., -2.5],
                     0.5,
-                    Metal::from([0.8, 0.6, 0.2], 0.),
+                    Metal::new(amber, 0.),
+                    // Metal::new(Checkered::new(bronze, amber), 0.),
                 ));
                 world.push(Sphere::from(
                     [-1.05, 0., -2.5],
                     0.5,
-                    Lambertian::new(Color::new(0.1, 0.2, 0.5)),
+                    // Lambertian::new(blue),
+                    Lambertian::new(Checkered::new(blue, Color::new(1., 1., 1.))),
                 ));
 
                 world
