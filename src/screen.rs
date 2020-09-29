@@ -1,6 +1,7 @@
+use std::f64::consts;
 use std::ops::Range;
 
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use rand::distributions::{Distribution, Uniform};
 use rayon::prelude::*;
 
@@ -95,8 +96,8 @@ impl Camera {
 
 #[derive(Debug)]
 pub struct CameraBuilder {
-    origin: Vec3,
-    look_at: Vec3,
+    origin: Option<Vec3>,
+    look_at: Option<Vec3>,
     view_up: Vec3,
     vfov_degrees: f64,
     aspect_ratio: f64,
@@ -109,10 +110,19 @@ pub struct CameraBuilder {
 }
 impl CameraBuilder {
     pub fn build(&self) -> Result<Camera> {
+        let origin = self
+            .origin
+            .ok_or_else(|| anyhow!("Camera's origin wasn't provided."))
+            .camera_context(self)?;
+        let look_at = self
+            .look_at
+            .ok_or_else(|| anyhow!("Camera's look_at wasn't provided."))
+            .camera_context(self)?;
+
         let lens_radius = self.aperture.map(|a| a / 2.);
         let focus_dist = self
             .focus_dist
-            .unwrap_or_else(|| (self.origin - self.look_at).norm());
+            .unwrap_or_else(|| (origin - look_at).norm());
         let shutter_time = self.shutter_time.clone().map(Uniform::from);
 
         let theta = self.vfov_degrees.to_radians() / 2.;
@@ -123,11 +133,11 @@ impl CameraBuilder {
         // Also deal with bad camera configurations.
 
         // Error if camera's origin and look_at are the same.
-        let w = Vec3::checked_normalized(self.origin - self.look_at)
+        let w = Vec3::checked_normalized(origin - look_at)
             .with_context(|| {
                 format!(
                     "Camera's origin and look_at vectors are the same.\nOrigin: {:?}",
-                    self.origin,
+                    origin,
                 )
             })
             .camera_context(self)?;
@@ -142,18 +152,18 @@ impl CameraBuilder {
             .with_context(|| {
                 format!(
                     "Camera's look_at and view_up vectors are parellel.\nResp.: {:?} || {:?}",
-                    self.look_at, view_up,
+                    look_at, view_up,
                 )
             })
             .camera_context(self)?;
 
         let v = w.cross(u);
-        let lower_left = self.origin - u * half_width - v * half_height - focus_dist * w;
+        let lower_left = origin - u * half_width - v * half_height - focus_dist * w;
         let horiz = 2. * u * half_width;
         let vert = 2. * v * half_height;
 
         Ok(Camera {
-            origin: self.origin,
+            origin,
             horiz,
             vert,
             lower_left,
@@ -166,11 +176,11 @@ impl CameraBuilder {
     }
     // ===== Builder Methods =====
     pub fn origin<T: Into<Vec3>>(&mut self, origin: T) -> &mut Self {
-        self.origin = origin.into();
+        self.origin = Some(origin.into());
         self
     }
     pub fn look_at<T: Into<Vec3>>(&mut self, look_at: T) -> &mut Self {
-        self.look_at = look_at.into();
+        self.look_at = Some(look_at.into());
         self
     }
     pub fn vfov_degrees(&mut self, vfov: f64) -> &mut Self {
@@ -183,6 +193,30 @@ impl CameraBuilder {
     }
     pub fn view_up<T: Into<Vec3>>(&mut self, view_up: T) -> &mut Self {
         self.view_up = view_up.into();
+        self
+    }
+    /// Set the camera's view_up to be `deg` degrees counterclockwise from straight up,
+    /// relative to the given Axis.
+    /// # Example
+    /// ```
+    /// # use raytracing::{Axis, Camera};
+    /// let c = Camera::builder()
+    ///     .origin([0., 20., 0.])
+    ///     .look_at([0., 10., 0.])
+    ///     .view_up_degrees(15., Axis::Z)
+    ///     .build()
+    ///     .unwrap();
+    /// ```
+    pub fn view_up_degrees(&mut self, deg: f64, axis: Axis) -> &mut Self {
+        // Shift the angle by pi/2 so that an input of `deg: 0.0` will result
+        // in view_up being straight up, as opposed to straight right.
+        let rads = deg.to_radians() + consts::FRAC_PI_2;
+        let (sin, cos) = rads.sin_cos();
+        self.view_up = Vec3::from(match axis {
+            Axis::X => [0., sin, -cos],
+            Axis::Y => [cos, 0., -sin],
+            Axis::Z => [cos, sin, 0.],
+        });
         self
     }
     /// Used for depth of field. Set to `None` to disable depth of field.
@@ -206,8 +240,8 @@ impl Default for CameraBuilder {
         let width = config::GLOBAL().width as f64;
         let height = config::GLOBAL().height as f64;
         Self {
-            origin: Vec3::ORIGIN,
-            look_at: Vec3::new(0., 0., -1.),
+            origin: None,
+            look_at: None,
             view_up: Vec3::UNIT_Y,
             vfov_degrees: 60.,
             aspect_ratio: width / height,

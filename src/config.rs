@@ -10,7 +10,7 @@ use strum_macros::{EnumString, EnumVariantNames};
 
 use crate::material::{Checkered, Dielectric, Lambertian, Metal};
 use crate::shape::{MovingSphere, Sphere};
-use crate::{Camera, Color, CrateRng, HitList, Vec3, BVH};
+use crate::{Axis, Camera, Color, CrateRng, HitList, Vec3, BVH};
 
 static CONFIG: OnceCell<Config> = OnceCell::new();
 
@@ -103,9 +103,9 @@ impl Scene {
                 .vfov_degrees(40.)
                 .build(),
             BirdsEyeView => Camera::builder()
-                .origin([0., 10., 0.])
+                .origin([0., 20., 0.])
                 .look_at([0., 0., 0.])
-                .view_up([1., 0., 0.5])
+                .view_up_degrees(15., Axis::Y)
                 .build(),
         };
 
@@ -215,7 +215,7 @@ impl Scene {
             BirdsEyeView => {
                 let mut world = HitList::new();
                 world.push(Sphere::from(
-                    [0., -10., 0.],
+                    [0., 0., 0.],
                     10.,
                     Lambertian::new(Checkered::color(2.5, [0.2, 0.3, 0.1], [0.9, 0.9, 0.9])),
                 ));
