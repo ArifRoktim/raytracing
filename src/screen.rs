@@ -1,9 +1,10 @@
 use std::ops::Range;
 
+use anyhow::{Context, Result};
 use rand::distributions::{Distribution, Uniform};
 use rayon::prelude::*;
 
-use crate::{config, Color, CrateRng, Ray, Vec3};
+use crate::{config, Axis, Color, CrateRng, Ray, Vec3};
 
 pub struct Screen {
     pub width: usize,
@@ -25,9 +26,11 @@ impl Screen {
         self.buffer
             .iter()
             .map(|p| {
-                assert!(0.0 <= p.r && p.r <= 1.0);
-                assert!(0.0 <= p.g && p.g <= 1.0);
-                assert!(0.0 <= p.b && p.b <= 1.0);
+                // Check for invalid Colors, including NANs
+                let bounds = 0.0..=1.0;
+                if !bounds.contains(&p.r) || !bounds.contains(&p.g) || !bounds.contains(&p.b) {
+                    panic!("Invalid color: {:?}", p);
+                }
 
                 let (r, g, b) = (
                     255.99 * p.r.sqrt(),
@@ -49,6 +52,7 @@ impl Screen {
     }
 }
 
+#[derive(Debug)]
 pub struct Camera {
     pub origin: Vec3,
     pub horiz: Vec3,
@@ -59,11 +63,11 @@ pub struct Camera {
     pub lens_radius: Option<f64>,
     /// Used for motion blur. Set to `None` to disable.
     pub shutter_time: Option<Uniform<f64>>,
-    /// Orthonormal basis
+    /// Width part of the orthonormal basis.
     pub u: Vec3,
-    /// Orthonormal basis
+    /// Height part of the orthonormal basis.
     pub v: Vec3,
-    /// Orthonormal basis
+    /// Depth part of the orthonormal basis.
     pub w: Vec3,
 }
 impl Camera {
@@ -89,6 +93,7 @@ impl Camera {
     }
 }
 
+#[derive(Debug)]
 pub struct CameraBuilder {
     origin: Vec3,
     look_at: Vec3,
@@ -103,7 +108,7 @@ pub struct CameraBuilder {
     shutter_time: Option<Range<f64>>,
 }
 impl CameraBuilder {
-    pub fn build(&self) -> Camera {
+    pub fn build(&self) -> Result<Camera> {
         let lens_radius = self.aperture.map(|a| a / 2.);
         let focus_dist = self
             .focus_dist
@@ -114,16 +119,40 @@ impl CameraBuilder {
         let half_height = focus_dist * theta.tan();
         let half_width = self.aspect_ratio * half_height;
 
-        // Project view_up onto the plane of the camera
-        let w = Vec3::normalized(self.origin - self.look_at);
-        let u = Vec3::normalized(self.view_up.cross(w));
-        let v = w.cross(u);
+        // Project view_up onto the plane of the camera and form the orthonormal basis.
+        // Also deal with bad camera configurations.
 
+        // Error if camera's origin and look_at are the same.
+        let w = Vec3::checked_normalized(self.origin - self.look_at)
+            .with_context(|| {
+                format!(
+                    "Camera's origin and look_at vectors are the same.\nOrigin: {:?}",
+                    self.origin,
+                )
+            })
+            .camera_context(self)?;
+
+        // Error if the view_up vector has length 0.
+        let view_up = Vec3::checked_normalized(self.view_up)
+            .with_context(|| format!("Camera's view_up vector has length 0: {:?}", self.view_up))
+            .camera_context(self)?;
+
+        // Error if look_at and view_up are parallel.
+        let u = Vec3::checked_normalized(view_up.cross(w))
+            .with_context(|| {
+                format!(
+                    "Camera's look_at and view_up vectors are parellel.\nResp.: {:?} || {:?}",
+                    self.look_at, view_up,
+                )
+            })
+            .camera_context(self)?;
+
+        let v = w.cross(u);
         let lower_left = self.origin - u * half_width - v * half_height - focus_dist * w;
         let horiz = 2. * u * half_width;
         let vert = 2. * v * half_height;
 
-        Camera {
+        Ok(Camera {
             origin: self.origin,
             horiz,
             vert,
@@ -133,7 +162,7 @@ impl CameraBuilder {
             u,
             v,
             w,
-        }
+        })
     }
     // ===== Builder Methods =====
     pub fn origin<T: Into<Vec3>>(&mut self, origin: T) -> &mut Self {
@@ -186,5 +215,15 @@ impl Default for CameraBuilder {
             focus_dist: None,
             shutter_time: None,
         }
+    }
+}
+
+trait ResultExt {
+    fn camera_context(self, builder: &CameraBuilder) -> Result<Vec3>;
+}
+impl ResultExt for Result<Vec3> {
+    /// Attach the CameraBuilder to the Result as context.
+    fn camera_context(self, builder: &CameraBuilder) -> Result<Vec3> {
+        self.with_context(|| format!("Invalid Camera configuration.\n{:#?}", builder))
     }
 }

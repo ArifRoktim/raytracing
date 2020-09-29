@@ -131,19 +131,22 @@ dyn_clone::clone_trait_object!(Texture);
 
 #[derive(Clone, Debug)]
 pub struct Checkered {
+    pub freq: f64,
     pub odd: Box<dyn Texture>,
     pub even: Box<dyn Texture>,
 }
 impl Checkered {
-    pub fn new<T: Texture + 'static, U: Texture + 'static>(odd: T, even: U) -> Self {
+    pub fn new<T: Texture + 'static, U: Texture + 'static>(freq: f64, odd: T, even: U) -> Self {
         Self {
+            freq,
             even: Box::new(even),
             odd: Box::new(odd),
         }
     }
 
-    pub fn color<T: Into<Color>, U: Into<Color>>(odd: T, even: U) -> Self {
+    pub fn color<T: Into<Color>, U: Into<Color>>(freq: f64, odd: T, even: U) -> Self {
         Self {
+            freq,
             even: Box::new(even.into()),
             odd: Box::new(odd.into()),
         }
@@ -151,10 +154,10 @@ impl Checkered {
 }
 impl Texture for Checkered {
     fn value(&self, u: f64, v: f64, point: Vec3) -> Color {
-        let freq = 10.;
-        // TODO: Optimize maybe, since we only need the signs, not the actual products
-        let sines = (point.x * freq).sin() * (point.y * freq).sin() * (point.z * freq).sin();
-        if sines < 0. {
+        let mut parity = (point.x * self.freq).sin() < 0.;
+        parity ^= (point.y * self.freq).sin() < 0.;
+        parity ^= (point.z * self.freq).sin() < 0.;
+        if parity {
             self.odd.value(u, v, point)
         } else {
             self.even.value(u, v, point)

@@ -1,9 +1,11 @@
 use std::time::Duration;
 
+use anyhow::Result;
 use once_cell::sync::OnceCell;
 use rand::Rng;
 use structopt::StructOpt;
 use strum::VariantNames;
+use strum_macros::Display as StrumDisplay;
 use strum_macros::{EnumString, EnumVariantNames};
 
 use crate::material::{Checkered, Dielectric, Lambertian, Metal};
@@ -64,22 +66,23 @@ fn invert_bool(i: u64) -> bool {
     i == 0
 }
 
-#[derive(Copy, Clone, Debug, EnumString, EnumVariantNames, PartialEq)]
+#[derive(Copy, Clone, Debug, StrumDisplay, EnumString, EnumVariantNames, PartialEq)]
 pub enum Scene {
     Random,
     TwoSpheres,
     Balls,
+    BirdsEyeView,
 }
 
 impl Scene {
     pub fn create(self, rng: &mut CrateRng) -> (Camera, HitList) {
-        (self.camera(), self.world(rng))
+        let camera = self.camera().expect("Invalid camera for Scene");
+        (camera, self.world(rng))
     }
 
-    pub fn camera(self) -> Camera {
+    pub fn camera(self) -> Result<Camera> {
         use Scene::*;
-
-        match self {
+        let result = match self {
             Random => Camera::builder()
                 .origin([13., 2., 3.])
                 .look_at([0., 0., 0.])
@@ -99,7 +102,14 @@ impl Scene {
                 .look_at([-0.2, 0., -1.2])
                 .vfov_degrees(40.)
                 .build(),
-        }
+            BirdsEyeView => Camera::builder()
+                .origin([0., 10., 0.])
+                .look_at([0., 0., 0.])
+                .view_up([1., 0., 0.5])
+                .build(),
+        };
+
+        result.map_err(|err| err.context(self))
     }
 
     pub fn world(self, rng: &mut CrateRng) -> HitList {
@@ -108,7 +118,7 @@ impl Scene {
         match self {
             Random => {
                 let mut world = HitList::new();
-                let checker = Checkered::color([0.2, 0.3, 0.1], [0.9, 0.9, 0.9]);
+                let checker = Checkered::color(10., [0.2, 0.3, 0.1], [0.9, 0.9, 0.9]);
                 world.push(Sphere::from(
                     [0., -1000., 0.],
                     1000.,
@@ -160,7 +170,7 @@ impl Scene {
             }
             TwoSpheres => {
                 let mut world = HitList::new();
-                let checker = Checkered::color([0.2, 0.3, 0.1], [0.9, 0.9, 0.9]);
+                let checker = Checkered::color(10., [0.2, 0.3, 0.1], [0.9, 0.9, 0.9]);
                 world.push(Sphere::from(
                     [0., -10., 0.],
                     10.,
@@ -198,6 +208,16 @@ impl Scene {
                     [-1.05, 0., -2.5],
                     0.5,
                     Lambertian::new(Color::new(0.1, 0.2, 0.5)),
+                ));
+
+                world
+            }
+            BirdsEyeView => {
+                let mut world = HitList::new();
+                world.push(Sphere::from(
+                    [0., -10., 0.],
+                    10.,
+                    Lambertian::new(Checkered::color(2.5, [0.2, 0.3, 0.1], [0.9, 0.9, 0.9])),
                 ));
 
                 world

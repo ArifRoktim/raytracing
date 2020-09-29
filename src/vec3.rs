@@ -1,5 +1,6 @@
 use std::ops;
 
+use anyhow::{ensure, Result};
 use rand::Rng;
 use rand_distr::{Distribution, Standard, Uniform};
 
@@ -11,6 +12,7 @@ pub struct Vec3 {
     pub y: f64,
     pub z: f64,
 }
+const ERR_NORMED_0: &str = "Tried to normalize vector of length 0!";
 impl Vec3 {
     pub const ORIGIN: Self = Self::new(0., 0., 0.);
     // The standard basis
@@ -30,7 +32,22 @@ impl Vec3 {
     /// assert_eq!(b.norm(), 1.);
     /// ```
     pub fn normalized(v: Vec3) -> Self {
-        v / v.norm()
+        let normed = v / v.norm();
+        // TODO: Measure perf impact of assert! vs debug_assert!
+        debug_assert!(!normed.is_nan(), ERR_NORMED_0);
+        normed
+    }
+
+    /// # Example
+    /// ```
+    /// # use raytracing::vec3::Vec3;
+    /// let a = Vec3::new(0., 0., 0.);
+    /// assert!(Vec3::checked_normalized(a).is_err());
+    /// ```
+    pub fn checked_normalized(v: Vec3) -> Result<Self> {
+        let norm = v.norm();
+        ensure!(norm != 0., ERR_NORMED_0);
+        Ok(v / norm)
     }
 
     /// Samples uniformly from the surface of the unit sphere in three dimensions.
@@ -88,6 +105,10 @@ impl Vec3 {
         let refract_parallel = eta_i_over_eta_t * (*self + cos_theta * normal);
         let refract_perp = -normal * (1. - refract_parallel.norm_squared()).sqrt();
         refract_parallel + refract_perp
+    }
+
+    pub fn is_nan(&self) -> bool {
+        self.x.is_nan() || self.y.is_nan() || self.z.is_nan()
     }
 }
 
