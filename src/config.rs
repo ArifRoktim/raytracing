@@ -8,7 +8,7 @@ use strum::VariantNames;
 use strum_macros::Display as StrumDisplay;
 use strum_macros::{EnumString, EnumVariantNames};
 
-use crate::material::{Checkered, Dielectric, Lambertian, Metal};
+use crate::material::{Checkered, Dielectric, Lambertian, Metal, ValueNoise};
 use crate::shape::{MovingSphere, Sphere};
 use crate::{Axis, Camera, Color, CrateRng, HitList, Vec3, BVH};
 
@@ -72,6 +72,7 @@ pub enum Scene {
     TwoSpheres,
     Balls,
     BirdsEyeView,
+    ValueNoise1,
 }
 
 impl Scene {
@@ -106,6 +107,11 @@ impl Scene {
                 .origin([0., 20., 0.])
                 .look_at([0., 0., 0.])
                 .view_up_degrees(15., Axis::Y)
+                .build(),
+            ValueNoise1 => Camera::builder()
+                .origin([13., 2., 3.])
+                .look_at([0., 0., 0.])
+                .vfov_degrees(25.)
                 .build(),
         };
 
@@ -218,6 +224,22 @@ impl Scene {
                     [0., 0., 0.],
                     10.,
                     Lambertian::new(Checkered::color(2.5, [0.2, 0.3, 0.1], [0.9, 0.9, 0.9])),
+                ));
+
+                world
+            }
+            ValueNoise1 => {
+                let mut world = HitList::new();
+                let noise = ValueNoise::new(GLOBAL().seed, 4.);
+                world.push(Sphere::from(
+                    [0., -1000., 0.],
+                    1000.,
+                    Lambertian::new(noise),
+                ));
+                world.push(Sphere::from(
+                    [0., 2., 0.],
+                    2.,
+                    Metal::from([0.7, 0.6, 0.5], 0.),
                 ));
 
                 world

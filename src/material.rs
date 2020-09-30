@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
-use dyn_clone::DynClone;
-use rand::Rng;
+use rand::distributions::{Distribution, Uniform};
+use rand::{Rng, SeedableRng};
 
 use crate::{Color, CrateRng, Hit, Ray, Vec3};
 
@@ -23,18 +23,15 @@ pub trait Material: Sync + Debug {
 
 #[derive(Debug)]
 /// Diffuse reflection
-pub struct Lambertian {
-    // TODO: Optimize by replacing with an Enum
-    pub albedo: Box<dyn Texture>,
+pub struct Lambertian<T> {
+    pub albedo: T,
 }
-impl Lambertian {
-    pub fn new<T: Texture + 'static>(albedo: T) -> Self {
-        Self {
-            albedo: Box::new(albedo),
-        }
+impl<T> Lambertian<T> {
+    pub fn new(albedo: T) -> Self {
+        Self { albedo }
     }
 }
-impl Material for Lambertian {
+impl<T: Texture> Material for Lambertian<T> {
     fn scatter(&self, ray: &Ray, hit: &Hit, rng: &mut CrateRng) -> Option<Scatter> {
         let scatter_dir = hit.normal + Vec3::rand_unit_sphere(rng);
         let scattered = Ray::new(hit.point, scatter_dir, ray.time);
@@ -124,35 +121,31 @@ impl Material for DbgBlack {
 }
 
 // ===== Textures =====
-pub trait Texture: Sync + Debug + DynClone {
+pub trait Texture: Sync + Debug {
     fn value(&self, u: f64, v: f64, point: Vec3) -> Color;
 }
-dyn_clone::clone_trait_object!(Texture);
 
 #[derive(Clone, Debug)]
-pub struct Checkered {
+pub struct Checkered<O, E> {
     pub freq: f64,
-    pub odd: Box<dyn Texture>,
-    pub even: Box<dyn Texture>,
+    pub odd: O,
+    pub even: E,
 }
-impl Checkered {
-    pub fn new<T: Texture + 'static, U: Texture + 'static>(freq: f64, odd: T, even: U) -> Self {
-        Self {
-            freq,
-            even: Box::new(even),
-            odd: Box::new(odd),
-        }
+impl<O, E> Checkered<O, E> {
+    pub fn new(freq: f64, odd: O, even: E) -> Self {
+        Self { freq, odd, even }
     }
-
+}
+impl Checkered<Color, Color> {
     pub fn color<T: Into<Color>, U: Into<Color>>(freq: f64, odd: T, even: U) -> Self {
         Self {
             freq,
-            even: Box::new(even.into()),
-            odd: Box::new(odd.into()),
+            even: even.into(),
+            odd: odd.into(),
         }
     }
 }
-impl Texture for Checkered {
+impl<O: Texture, E: Texture> Texture for Checkered<O, E> {
     fn value(&self, u: f64, v: f64, point: Vec3) -> Color {
         let mut parity = (point.x * self.freq).sin() < 0.;
         parity ^= (point.y * self.freq).sin() < 0.;
@@ -163,4 +156,118 @@ impl Texture for Checkered {
             self.even.value(u, v, point)
         }
     }
+}
+
+/// 3D Value Noise
+pub struct ValueNoise {
+    randoms: [f64; Self::SIZE],
+    /// The permutations table.
+    perms: [u16; Self::SIZE * 2],
+    freq: f64,
+}
+impl ValueNoise {
+    const SIZE: usize = 256;
+    /// Used for calculating the modulo/euclidean remainder by 256.
+    const MASK: isize = (Self::SIZE - 1) as isize;
+
+    pub fn new<T: Into<Option<u64>>>(seed: T, freq: f64) -> Self {
+        let mut rng = match seed.into() {
+            Some(seed) => CrateRng::seed_from_u64(seed),
+            None => CrateRng::from_entropy(),
+        };
+
+        let mut randoms = [0.0; Self::SIZE];
+        let mut perms = [0; Self::SIZE * 2];
+
+        for i in 0..Self::SIZE {
+            randoms[i] = rng.gen();
+            perms[i] = i as u16;
+        }
+
+        let index = Uniform::new(0, Self::SIZE);
+        for i in 0..Self::SIZE {
+            let j = index.sample(&mut rng);
+            perms.swap(i, j);
+            perms[i + Self::SIZE] = perms[i];
+        }
+
+        Self {
+            randoms,
+            perms,
+            freq,
+        }
+    }
+
+    pub fn hash(&self, x: isize, y: isize, z: isize) -> usize {
+        let perm_xy = self.perms[x as usize] + y as u16;
+        let plus_z = self.perms[perm_xy as usize] + z as u16;
+        self.perms[plus_z as usize] as usize
+    }
+
+    pub fn eval(&self, p: Vec3) -> f64 {
+        let xi = p.x.floor();
+        let yi = p.y.floor();
+        let zi = p.z.floor();
+
+        let tx = p.x - xi;
+        let ty = p.y - yi;
+        let tz = p.z - zi;
+
+        let sx = smooth_step(tx);
+        let sy = smooth_step(ty);
+        let sz = smooth_step(tz);
+
+        // The 6 values that determine the cube enclosing the given point
+        // Do bitwise AND to get the euclidean remainder/modulo by 256.
+        let rx0 = xi as isize & Self::MASK;
+        let ry0 = yi as isize & Self::MASK;
+        let rz0 = zi as isize & Self::MASK;
+        let rx1 = (rx0 + 1) & Self::MASK;
+        let ry1 = (ry0 + 1) & Self::MASK;
+        let rz1 = (rz0 + 1) & Self::MASK;
+
+        // The 8 random values at the corners of said cube.
+        let c000 = self.randoms[self.hash(rx0, ry0, rz0)];
+        let c100 = self.randoms[self.hash(rx1, ry0, rz0)];
+        let c010 = self.randoms[self.hash(rx0, ry1, rz0)];
+        let c110 = self.randoms[self.hash(rx1, ry1, rz0)];
+
+        let c001 = self.randoms[self.hash(rx0, ry0, rz1)];
+        let c101 = self.randoms[self.hash(rx1, ry0, rz1)];
+        let c011 = self.randoms[self.hash(rx0, ry1, rz1)];
+        let c111 = self.randoms[self.hash(rx1, ry1, rz1)];
+
+        // lerp along X axis
+        let x00 = lerp(c000, c100, sx);
+        let x10 = lerp(c010, c110, sx);
+        let x01 = lerp(c001, c101, sx);
+        let x11 = lerp(c011, c111, sx);
+
+        // lerp along Y axis
+        let y0 = lerp(x00, x10, sy);
+        let y1 = lerp(x01, x11, sy);
+
+        // finally lerp along Z axis
+        lerp(y0, y1, sz)
+    }
+}
+impl Debug for ValueNoise {
+    /// This struct's fields are too large to be printed.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ValueNoise { .. }").finish()
+    }
+}
+impl Texture for ValueNoise {
+    fn value(&self, _u: f64, _v: f64, point: Vec3) -> Color {
+        Color::default() * self.eval(point * self.freq)
+    }
+}
+
+// ===== Utilities =====
+pub fn smooth_step(t: f64) -> f64 {
+    t * t * (3. - 2. * t)
+}
+
+pub fn lerp(low: f64, high: f64, t: f64) -> f64 {
+    low * (1. - t) + high * t
 }
