@@ -32,10 +32,10 @@ impl Vec3 {
     /// assert_eq!(b.norm(), 1.);
     /// ```
     pub fn normalized(v: Vec3) -> Self {
-        let normed = v / v.norm();
+        let norm = v.norm();
         // TODO: Measure perf impact of assert! vs debug_assert!
-        debug_assert!(!normed.is_nan(), ERR_NORMED_0);
-        normed
+        debug_assert!(norm != 0., ERR_NORMED_0);
+        v / norm
     }
 
     /// # Example

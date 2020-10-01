@@ -1,6 +1,7 @@
+use std::num::{NonZeroU16, NonZeroU32, NonZeroUsize};
 use std::time::Duration;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use once_cell::sync::OnceCell;
 use rand::Rng;
 use structopt::StructOpt;
@@ -24,11 +25,11 @@ pub fn GLOBAL() -> &'static Config {
 pub struct Config {
     #[structopt(short, long, default_value = "1024", display_order = 0)]
     /// Width of render
-    pub width: usize,
+    pub width: NonZeroUsize,
 
     #[structopt(short, long, default_value = "576", display_order = 1)]
     /// Height of render
-    pub height: usize,
+    pub height: NonZeroUsize,
 
     // Run at 30 fps
     #[structopt(skip = Duration::from_secs_f64(1. / 30.))]
@@ -45,21 +46,35 @@ pub struct Config {
     /// Controls antialiasing
     pub antialias: bool,
 
-    #[structopt(short, long = "samples", default_value = "100")]
+    #[structopt(short, long, default_value = "100")]
     /// Number of samples per pixel
-    pub samples_per_pixel: u16,
+    pub samples: NonZeroU16,
 
-    #[structopt(short, long = "max-depth", default_value = "100")]
+    #[structopt(short, long, default_value = "100")]
     /// Maximum ray bounce depth
-    pub max_ray_depth: u32,
+    pub max_depth: NonZeroU32,
 
     #[structopt(short = "r", long = "rng")]
     /// Use a specific seed for the rng.
     pub seed: Option<u64>,
 
-    #[structopt(default_value = "Random", possible_values = Scene::VARIANTS)]
+    #[structopt(
+        default_value = "Random",
+        // Using this instead of possible_values because possible_values doesn't wrap properly
+        parse(try_from_str = parse_scene),
+    )]
     /// The scene to render
     pub scene: Scene,
+}
+
+fn parse_scene(s: &str) -> Result<Scene> {
+    s.parse::<Scene>().map_err(|_| {
+        anyhow!(
+            "\"{}\" isn't a Scene.\nPossible values: {:#?}",
+            s,
+            Scene::VARIANTS
+        )
+    })
 }
 
 fn invert_bool(i: u64) -> bool {

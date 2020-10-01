@@ -6,7 +6,7 @@ use std::thread;
 use std::time::Instant;
 
 use minifb::{Key, Window, WindowOptions};
-use rand::{rngs::SmallRng, Rng, SeedableRng};
+use rand::{Rng, SeedableRng};
 use rayon::prelude::*;
 
 use raytracing::config;
@@ -17,12 +17,12 @@ fn main() {
     let CFG: &'static _ = config::GLOBAL();
 
     let mut rng = match CFG.seed {
-        Some(seed) => SmallRng::seed_from_u64(seed),
-        None => SmallRng::from_entropy(),
+        Some(seed) => CrateRng::seed_from_u64(seed),
+        None => CrateRng::from_entropy(),
     };
 
-    let width = CFG.width;
-    let height = CFG.height;
+    let width = CFG.width.get();
+    let height = CFG.height.get();
     let (camera, world) = CFG.scene.create(&mut rng);
 
     let mut screen = Screen::new(width, height);
@@ -69,10 +69,10 @@ fn main() {
 
             // Initialize rng based off of row number
             let seed = seed.wrapping_add(1).wrapping_mul(y as u64);
-            let mut rng = SmallRng::seed_from_u64(seed);
+            let mut rng = CrateRng::seed_from_u64(seed);
             for (x, pix) in row.iter_mut().enumerate() {
                 let mut avg = Color::new(0., 0., 0.);
-                for _ in 0..CFG.samples_per_pixel {
+                for _ in 0..CFG.samples.get() {
                     let (rand_i, rand_j): (f64, f64) = if !CFG.antialias {
                         (0., 0.)
                     } else {
@@ -85,7 +85,7 @@ fn main() {
                     let sample = ray_color(&world, &ray, &mut rng);
                     avg += sample;
                 }
-                avg /= CFG.samples_per_pixel as f64;
+                avg /= CFG.samples.get() as f64;
                 *pix = avg;
             }
             counter.fetch_add(1, Ordering::SeqCst);
@@ -110,7 +110,7 @@ fn main() {
 fn ray_color(world: &HitList, ray: &Ray, rng: &mut CrateRng) -> Color {
     let mut color = Color::default();
     let mut ray = ray.clone();
-    let mut bounces = config::GLOBAL().max_ray_depth;
+    let mut bounces = config::GLOBAL().max_depth.get();
 
     // NOTE: Tweak the beginning of the range to deal with shadow acne.
     while let Some(hit) = world.hit(&ray, &(0.001..f64::INFINITY)) {
