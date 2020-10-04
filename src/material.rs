@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use rand::distributions::{Distribution, Uniform};
 use rand::{Rng, SeedableRng};
@@ -158,12 +159,14 @@ impl<O: Texture, E: Texture> Texture for Checkered<O, E> {
     }
 }
 
+type Callback = dyn Fn(&ValueNoise, Vec3) -> f64 + Send + Sync;
 /// 3D Value Noise
 pub struct ValueNoise {
     randoms: [f64; Self::SIZE],
     /// The permutations table.
     perms: [u16; Self::SIZE * 2],
     freq: f64,
+    callback: Option<Box<Callback>>,
 }
 impl ValueNoise {
     const SIZE: usize = 256;
@@ -195,7 +198,12 @@ impl ValueNoise {
             randoms,
             perms,
             freq,
+            callback: None,
         }
+    }
+
+    pub fn arc(self) -> Arc<Self> {
+        Arc::new(self)
     }
 
     pub fn hash(&self, x: isize, y: isize, z: isize) -> usize {
@@ -205,6 +213,15 @@ impl ValueNoise {
     }
 
     pub fn eval(&self, p: Vec3) -> f64 {
+        self.callback
+            .as_ref()
+            .map(|callback| (callback)(self, p))
+            .unwrap_or_else(|| self.noise(p))
+    }
+
+    fn noise(&self, mut p: Vec3) -> f64 {
+        p *= self.freq;
+
         let xi = p.x.floor();
         let yi = p.y.floor();
         let zi = p.z.floor();
@@ -251,6 +268,82 @@ impl ValueNoise {
         lerp(y0, y1, sz)
     }
 }
+/// Common noise patterns
+impl ValueNoise {
+    #[allow(non_snake_case)]
+    /// Fractional brownian noise maker. Aka fractional brownian motion
+    pub fn fBm(mut self, lacunarity: f64, gain: f64, layers: usize) -> Self {
+        assert!(layers != 0, "fBm: Can't have 0 layers.");
+        assert!(0. < gain && gain < 1., "fBm: Gain must be in range (0, 1).");
+        // Get the maxiumum possible value of `sum` for later.
+        // Equal to `layers` terms in the geometric series where "a=1, r=gain"
+        let max = (1. - gain.powi(layers as i32)) / (1. - gain);
+
+        // This callback will compute the fractal sum
+        let callback = move |noise: &Self, mut p: Vec3| {
+            let mut sum = 0.;
+            let mut amplitude = 1.;
+            for _ in 0..layers {
+                sum += noise.noise(p) * amplitude;
+                p *= lacunarity;
+                amplitude *= gain;
+            }
+
+            // Normalize the sum to the range [0, 1]
+            sum / max
+        };
+
+        self.callback = Some(Box::new(callback));
+        self
+    }
+
+    /// bUmPY nOiSE makEr
+    pub fn turbulence(mut self, lacunarity: f64, gain: f64, layers: usize) -> Self {
+        assert!(layers != 0, "fBm: Can't have 0 layers.");
+        assert!(0. < gain && gain < 1., "fBm: Gain must be in range (0, 1).");
+        // Get the maxiumum possible value of `sum` for later.
+        // Equal to `layers` terms in the geometric series where "a=1, r=gain"
+        let max = (1. - gain.powi(layers as i32)) / (1. - gain);
+
+        // This callback will compute the fractal sum
+        let callback = move |noise: &Self, mut p: Vec3| {
+            let mut sum = 0.;
+            let mut amplitude = 1.;
+            for _ in 0..layers {
+                // mAke thE nOIsE bUmPY by making it signed, then taking its absolute value
+                let layer = 2. * noise.noise(p) - 1.;
+                sum += layer.abs() * amplitude;
+                p *= lacunarity;
+                amplitude *= gain;
+            }
+
+            // Normalize the sum to the range [0, 1]
+            sum / max
+        };
+
+        self.callback = Some(Box::new(callback));
+        self
+    }
+
+    /// Marbled noise
+    pub fn marbled(self, lacunarity: f64, gain: f64, layers: usize) -> Self {
+        let freq = self.freq;
+        // Get an fBm callback to later get fractal noise from.
+        let mut ret = self.fBm(lacunarity, gain, layers);
+        let fbm = ret.callback.take().unwrap();
+
+        let callback = move |noise: &Self, p: Vec3| {
+            let noise = fbm(noise, p);
+            // Perturb the phase of the sine function using the noise.
+            let noise = 5. * freq * noise + p.z;
+            // Normalize sine to range [0, 1]
+            (noise.sin() + 1.) * 0.5
+        };
+
+        ret.callback = Some(Box::new(callback));
+        ret
+    }
+}
 impl Debug for ValueNoise {
     /// This struct's fields are too large to be printed.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -259,7 +352,15 @@ impl Debug for ValueNoise {
 }
 impl Texture for ValueNoise {
     fn value(&self, _u: f64, _v: f64, point: Vec3) -> Color {
-        Color::default() * self.eval(point * self.freq)
+        Color::default() * self.eval(point)
+    }
+}
+
+// ===== Blanket Impls ======
+impl<T: Texture + Send + Debug> Texture for Arc<T> {
+    fn value(&self, u: f64, v: f64, point: Vec3) -> Color {
+        // Use fully qualified syntax to prevent recursion
+        <T as Texture>::value(self, u, v, point)
     }
 }
 

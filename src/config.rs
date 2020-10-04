@@ -88,6 +88,9 @@ pub enum Scene {
     Balls,
     BirdsEyeView,
     ValueNoise1,
+    ValueNoisePink,
+    ValueTurbulence,
+    ValueMarbled,
 }
 
 impl Scene {
@@ -123,10 +126,10 @@ impl Scene {
                 .look_at([0., 0., 0.])
                 .view_up_degrees(15., Axis::Y)
                 .build(),
-            ValueNoise1 => Camera::builder()
+            ValueNoise1 | ValueNoisePink | ValueTurbulence | ValueMarbled => Camera::builder()
                 .origin([13., 2., 3.])
                 .look_at([0., 0., 0.])
-                .vfov_degrees(25.)
+                .vfov_degrees(30.)
                 .build(),
         };
 
@@ -254,7 +257,59 @@ impl Scene {
                 world.push(Sphere::from(
                     [0., 2., 0.],
                     2.,
-                    Metal::from([0.7, 0.6, 0.5], 0.),
+                    Metal::from([0.7, 0.6, 0.5], 0.05),
+                ));
+                world.push(Sphere::from(
+                    [5., 2., -3.],
+                    2.,
+                    Lambertian::new(Color::new(0.1, 0.2, 0.5)),
+                ));
+
+                world
+            }
+            ValueNoisePink => {
+                let mut world = HitList::new();
+                let noise = ValueNoise::new(GLOBAL().seed, 2.).fBm(2., 0.5, 5).arc();
+                world.push(Sphere::from(
+                    [0., -1000., 0.],
+                    1000.,
+                    Lambertian::new(noise.clone()),
+                ));
+                world.push(Sphere::from([0., 2., 0.], 2., Lambertian::new(noise)));
+
+                world
+            }
+            ValueTurbulence => {
+                let mut world = HitList::new();
+                let noise = ValueNoise::new(GLOBAL().seed, 5.)
+                    .turbulence(1.8, 0.35, 5)
+                    .arc();
+                world.push(Sphere::from(
+                    [0., -1000., 0.],
+                    1000.,
+                    Lambertian::new(noise.clone()),
+                ));
+                world.push(Sphere::from([0., 2., 0.], 2., Lambertian::new(noise)));
+
+                world
+            }
+            ValueMarbled => {
+                let mut world = HitList::new();
+                let noise = ValueNoise::new(GLOBAL().seed, 1.).marbled(2., 0.5, 5);
+                world.push(Sphere::from(
+                    [0., -1000., 0.],
+                    1000.,
+                    Lambertian::new(noise),
+                ));
+                world.push(Sphere::from(
+                    [0., 2., 0.],
+                    2.,
+                    Metal::from([0.7, 0.6, 0.5], 0.05),
+                ));
+                world.push(Sphere::from(
+                    [5., 2., -3.],
+                    2.,
+                    Lambertian::new(Color::new(0.1, 0.2, 0.5)),
                 ));
 
                 world
