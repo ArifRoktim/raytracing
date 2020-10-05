@@ -15,6 +15,8 @@ pub use vec3::{Axis, Vec3};
 
 pub type CrateRng = rand::rngs::SmallRng;
 
+use anyhow::{Context, Result};
+
 #[derive(Clone)]
 pub struct Ray {
     pub origin: Vec3,
@@ -32,5 +34,30 @@ impl Ray {
 
     pub fn at(&self, t: f64) -> Vec3 {
         self.origin + t * self.dir
+    }
+}
+
+// ===== Extension Traits =====
+pub trait F64Ext {
+    fn lerp(self, low: f64, high: f64) -> f64;
+    fn smooth(self) -> f64;
+}
+impl F64Ext for f64 {
+    fn lerp(self, low: f64, high: f64) -> f64 {
+        low * (1. - self) + high * self
+    }
+
+    fn smooth(self) -> f64 {
+        self.powi(2) * (3. - 2. * self)
+    }
+}
+
+pub trait ResultExt<T> {
+    fn camera_context(self, builder: &CameraBuilder) -> Result<T>;
+}
+impl<T> ResultExt<T> for Result<T> {
+    /// Attach the CameraBuilder to the Result as context.
+    fn camera_context(self, builder: &CameraBuilder) -> Result<T> {
+        self.with_context(|| format!("Invalid Camera configuration.\n{:#?}", builder))
     }
 }

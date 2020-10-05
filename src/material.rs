@@ -4,7 +4,7 @@ use std::sync::Arc;
 use rand::distributions::{Distribution, Uniform};
 use rand::{Rng, SeedableRng};
 
-use crate::{Color, CrateRng, Hit, Ray, Vec3};
+use crate::{Color, CrateRng, F64Ext, Hit, Ray, Vec3};
 
 /// A scattered ray and its color information
 pub struct Scatter {
@@ -230,9 +230,9 @@ impl ValueNoise {
         let ty = p.y - yi;
         let tz = p.z - zi;
 
-        let sx = smooth_step(tx);
-        let sy = smooth_step(ty);
-        let sz = smooth_step(tz);
+        let sx = tx.smooth();
+        let sy = ty.smooth();
+        let sz = tz.smooth();
 
         // The 6 values that determine the cube enclosing the given point
         // Do bitwise AND to get the euclidean remainder/modulo by 256.
@@ -255,17 +255,17 @@ impl ValueNoise {
         let c111 = self.randoms[self.hash(rx1, ry1, rz1)];
 
         // lerp along X axis
-        let x00 = lerp(c000, c100, sx);
-        let x10 = lerp(c010, c110, sx);
-        let x01 = lerp(c001, c101, sx);
-        let x11 = lerp(c011, c111, sx);
+        let x00 = sx.lerp(c000, c100);
+        let x10 = sx.lerp(c010, c110);
+        let x01 = sx.lerp(c001, c101);
+        let x11 = sx.lerp(c011, c111);
 
         // lerp along Y axis
-        let y0 = lerp(x00, x10, sy);
-        let y1 = lerp(x01, x11, sy);
+        let y0 = sy.lerp(x00, x10);
+        let y1 = sy.lerp(x01, x11);
 
         // finally lerp along Z axis
-        lerp(y0, y1, sz)
+        sz.lerp(y0, y1)
     }
 }
 /// Common noise patterns
@@ -362,13 +362,4 @@ impl<T: Texture + Send + Debug> Texture for Arc<T> {
         // Use fully qualified syntax to prevent recursion
         <T as Texture>::value(self, u, v, point)
     }
-}
-
-// ===== Utilities =====
-pub fn smooth_step(t: f64) -> f64 {
-    t * t * (3. - 2. * t)
-}
-
-pub fn lerp(low: f64, high: f64, t: f64) -> f64 {
-    low * (1. - t) + high * t
 }

@@ -5,7 +5,7 @@ use anyhow::{anyhow, ensure, Context, Result};
 use rand::distributions::{Distribution, Uniform};
 use rayon::prelude::*;
 
-use crate::{config, Axis, Color, CrateRng, Ray, Vec3};
+use crate::{config, Axis, Color, CrateRng, Ray, ResultExt, Vec3};
 
 pub struct Screen {
     pub width: usize,
@@ -272,15 +272,5 @@ impl Default for CameraBuilder {
             focus_dist: None,
             shutter_time: None,
         }
-    }
-}
-
-trait ResultExt<T> {
-    fn camera_context(self, builder: &CameraBuilder) -> Result<T>;
-}
-impl<T> ResultExt<T> for Result<T> {
-    /// Attach the CameraBuilder to the Result as context.
-    fn camera_context(self, builder: &CameraBuilder) -> Result<T> {
-        self.with_context(|| format!("Invalid Camera configuration.\n{:#?}", builder))
     }
 }
