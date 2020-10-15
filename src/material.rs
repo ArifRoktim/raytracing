@@ -283,6 +283,7 @@ impl ValueNoise {
         let mut randoms = [0.0; Self::SIZE];
         let mut perms = [0; Self::SIZE * 2];
 
+        // Initialize part of the permutation table and then shuffle it
         for i in 0..Self::SIZE {
             randoms[i] = rng.gen();
             perms[i] = i as u16;
@@ -292,6 +293,7 @@ impl ValueNoise {
         for i in 0..Self::SIZE {
             let j = index.sample(&mut rng);
             perms.swap(i, j);
+            // Initialize the rest of the table.
             perms[i + Self::SIZE] = perms[i];
         }
 
@@ -383,7 +385,6 @@ impl NoiseAdapter for ValueNoise {
 }
 
 pub struct PerlinNoise {
-    gradients: [Vec3; Self::SIZE],
     perms: [u16; Self::SIZE * 2],
     freq: f64,
     callback: Option<Box<Callback<Self>>>,
@@ -399,11 +400,10 @@ impl PerlinNoise {
             None => CrateRng::from_entropy(),
         };
 
-        let mut gradients = [Vec3::default(); Self::SIZE];
         let mut perms = [0; Self::SIZE * 2];
-
+        // Initialize part of the permutation table and then shuffle it
+        #[allow(clippy::needless_range_loop)]
         for i in 0..Self::SIZE {
-            gradients[i] = Vec3::rand_unit_sphere(&mut rng);
             perms[i] = i as u16;
         }
 
@@ -411,14 +411,41 @@ impl PerlinNoise {
         for i in 0..Self::SIZE {
             let j = index.sample(&mut rng);
             perms.swap(i, j);
+            // Initialize the rest of the table.
             perms[i + Self::SIZE] = perms[i];
         }
 
-        Self { gradients, perms, freq, callback: None }
+        Self { perms, freq, callback: None }
     }
 
     pub fn arc(self) -> Arc<Self> {
         Arc::new(self)
+    }
+
+    /// Compute the dot product between a vector and one of the predefined gradients
+    pub fn dot_gradient(perm: usize, v: Vec3) -> f64 {
+        let Vec3 {x, y, z} = v;
+        // Modulo 16
+        let gradient = perm & 15;
+        match gradient {    // GRADIENTS
+            0 => x + y,     // (1,1,0)
+            1 => -x + y,    // (-1,1,0)
+            2 => x - y,     // (1,-1,0)
+            3 => -x - y,    // (-1,-1,0)
+            4 => x + z,     // (1,0,1)
+            5 => -x + z,    // (-1,0,1)
+            6 => x - z,     // (1,0,-1)
+            7 => -x - z,    // (-1,0,-1)
+            8 => y + z,     // (0,1,1)
+            9 => -y - z,    // (0,-1,1)
+            10 => y - z,    // (0,1,-1)
+            11 => -y - z,   // (0,-1,-1)
+            12 => x + y,    // (1,1,0)
+            13 => -x + y,   // (-1,1,0)
+            14 => -y + z,   // (0,-1,1)
+            15 => -y - z,   // (0,-1,-1)
+            _ => unreachable!(),
+        }
     }
 
     pub fn hash(&self, x: isize, y: isize, z: isize) -> usize {
@@ -450,17 +477,6 @@ impl PerlinNoise {
         let ry1 = (ry0 + 1) & Self::MASK;
         let rz1 = (rz0 + 1) & Self::MASK;
 
-        // The 8 gradients at the corners of said cube.
-        let c000 = self.gradients[self.hash(rx0, ry0, rz0)];
-        let c100 = self.gradients[self.hash(rx1, ry0, rz0)];
-        let c010 = self.gradients[self.hash(rx0, ry1, rz0)];
-        let c110 = self.gradients[self.hash(rx1, ry1, rz0)];
-
-        let c001 = self.gradients[self.hash(rx0, ry0, rz1)];
-        let c101 = self.gradients[self.hash(rx1, ry0, rz1)];
-        let c011 = self.gradients[self.hash(rx0, ry1, rz1)];
-        let c111 = self.gradients[self.hash(rx1, ry1, rz1)];
-
         let (x0, y0, z0) = (t.x, t.y, t.z);
         let (x1, y1, z1) = (x0 - 1., y0 - 1., z0 - 1.);
         // The 8 vectors going from the grid points to the point P
@@ -474,11 +490,22 @@ impl PerlinNoise {
         let p011 = Vec3::new(x0, y1, z1);
         let p111 = Vec3::new(x1, y1, z1);
 
+        // Dot product each vector with its respective gradient
+        let v000 = Self::dot_gradient(self.hash(rx0, ry0, rz0), p000);
+        let v100 = Self::dot_gradient(self.hash(rx1, ry0, rz0), p100);
+        let v010 = Self::dot_gradient(self.hash(rx0, ry1, rz0), p010);
+        let v110 = Self::dot_gradient(self.hash(rx1, ry1, rz0), p110);
+
+        let v001 = Self::dot_gradient(self.hash(rx0, ry0, rz1), p001);
+        let v101 = Self::dot_gradient(self.hash(rx1, ry0, rz1), p101);
+        let v011 = Self::dot_gradient(self.hash(rx0, ry1, rz1), p011);
+        let v111 = Self::dot_gradient(self.hash(rx1, ry1, rz1), p111);
+
         // lerp along X axis using the dot product
-        let x00 = smooth.x.lerp(c000.dot(p000), c100.dot(p100));
-        let x10 = smooth.x.lerp(c010.dot(p010), c110.dot(p110));
-        let x01 = smooth.x.lerp(c001.dot(p001), c101.dot(p101));
-        let x11 = smooth.x.lerp(c011.dot(p011), c111.dot(p111));
+        let x00 = smooth.x.lerp(v000, v100);
+        let x10 = smooth.x.lerp(v010, v110);
+        let x01 = smooth.x.lerp(v001, v101);
+        let x11 = smooth.x.lerp(v011, v111);
 
         // lerp along Y axis
         let y0 = smooth.y.lerp(x00, x10);

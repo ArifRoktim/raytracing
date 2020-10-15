@@ -48,7 +48,8 @@ impl F64Ext for f64 {
     }
 
     fn smooth(self) -> f64 {
-        self.powi(2) * (3. - 2. * self)
+        // 6t^5 - 15t^4 + 10t^3
+        self.powi(3) * (self * (6. * self - 15.) + 10.)
     }
 }
 

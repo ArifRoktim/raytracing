@@ -1,6 +1,9 @@
 # Ray Tracing
 
 ## Ray Tracing: The Next Week
+### Perlin noise, fractal noise, turbulence, and marbled texture.
+![Perlin noise](images/perlin_noise.png)
+
 ### Motion Blur
 ![Motion blur](images/motion_blur.png)
 
