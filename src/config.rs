@@ -9,7 +9,8 @@ use strum::VariantNames;
 use strum_macros::Display as StrumDisplay;
 use strum_macros::{EnumString, EnumVariantNames};
 
-use crate::material::{Checkered, Dielectric, Lambertian, Metal, ValueNoise};
+use crate::material::{Checkered, Dielectric, Lambertian, Metal};
+use crate::material::{NoiseAdapter, PerlinNoise, ValueNoise};
 use crate::shape::{MovingSphere, Sphere};
 use crate::{Axis, Camera, Color, CrateRng, HitList, Vec3, BVH};
 
@@ -88,9 +89,15 @@ pub enum Scene {
     Balls,
     BirdsEyeView,
     ValueNoise1,
+    ValueNoise2,
     ValueNoisePink,
     ValueTurbulence,
     ValueMarbled,
+    PerlinNoise1,
+    PerlinNoise2,
+    PerlinNoisePink,
+    PerlinTurbulence,
+    PerlinMarbled,
 }
 
 impl Scene {
@@ -126,7 +133,7 @@ impl Scene {
                 .look_at([0., 0., 0.])
                 .view_up_degrees(15., Axis::Y)
                 .build(),
-            ValueNoise1 | ValueNoisePink | ValueTurbulence | ValueMarbled => Camera::builder()
+            _ => Camera::builder()
                 .origin([13., 2., 3.])
                 .look_at([0., 0., 0.])
                 .vfov_degrees(30.)
@@ -257,12 +264,28 @@ impl Scene {
                 world.push(Sphere::from(
                     [0., 2., 0.],
                     2.,
-                    Metal::from([0.7, 0.6, 0.5], 0.05),
+                    Metal::from([0.8, 0.8, 0.8], 0.05),
                 ));
                 world.push(Sphere::from(
                     [5., 2., -3.],
                     2.,
                     Lambertian::new(Color::new(0.1, 0.2, 0.5)),
+                ));
+
+                world
+            }
+            ValueNoise2 => {
+                let mut world = HitList::new();
+                let noise = ValueNoise::new(GLOBAL().seed, 4.).arc();
+                world.push(Sphere::from(
+                    [0., -1000., 0.],
+                    1000.,
+                    Lambertian::new(noise.clone()),
+                ));
+                world.push(Sphere::from(
+                    [0., 2., 0.],
+                    2.,
+                    Lambertian::new(noise),
                 ));
 
                 world
@@ -295,7 +318,26 @@ impl Scene {
             }
             ValueMarbled => {
                 let mut world = HitList::new();
-                let noise = ValueNoise::new(GLOBAL().seed, 1.).marbled(2., 0.5, 5);
+                let noise = ValueNoise::new(GLOBAL().seed, 3.)
+                    .fBm(2., 0.5, 2)
+                    .marbled((2., 2.5), 0.5)
+                    .arc();
+                world.push(Sphere::from(
+                    [0., -1000., 0.],
+                    1000.,
+                    Lambertian::new(noise.clone()),
+                ));
+                world.push(Sphere::from(
+                    [0., 2., 0.],
+                    2.,
+                    Lambertian::new(noise),
+                ));
+
+                world
+            }
+            PerlinNoise1 => {
+                let mut world = HitList::new();
+                let noise = PerlinNoise::new(GLOBAL().seed, 4.);
                 world.push(Sphere::from(
                     [0., -1000., 0.],
                     1000.,
@@ -304,12 +346,73 @@ impl Scene {
                 world.push(Sphere::from(
                     [0., 2., 0.],
                     2.,
-                    Metal::from([0.7, 0.6, 0.5], 0.05),
+                    Metal::from([0.8, 0.8, 0.8], 0.05),
                 ));
                 world.push(Sphere::from(
                     [5., 2., -3.],
                     2.,
                     Lambertian::new(Color::new(0.1, 0.2, 0.5)),
+                ));
+
+                world
+            }
+            PerlinNoise2 => {
+                let mut world = HitList::new();
+                let noise = PerlinNoise::new(GLOBAL().seed, 4.).arc();
+                world.push(Sphere::from(
+                    [0., -1000., 0.],
+                    1000.,
+                    Lambertian::new(noise.clone()),
+                ));
+                world.push(Sphere::from(
+                    [0., 2., 0.],
+                    2.,
+                    Lambertian::new(noise),
+                ));
+
+                world
+            }
+            PerlinNoisePink => {
+                let mut world = HitList::new();
+                let noise = PerlinNoise::new(GLOBAL().seed, 2.).fBm(2., 0.5, 5).arc();
+                world.push(Sphere::from(
+                    [0., -1000., 0.],
+                    1000.,
+                    Lambertian::new(noise.clone()),
+                ));
+                world.push(Sphere::from([0., 2., 0.], 2., Lambertian::new(noise)));
+
+                world
+            }
+            PerlinTurbulence => {
+                let mut world = HitList::new();
+                let noise = PerlinNoise::new(GLOBAL().seed, 5.)
+                    .turbulence(2., 0.5, 7)
+                    .arc();
+                world.push(Sphere::from(
+                    [0., -1000., 0.],
+                    1000.,
+                    Lambertian::new(noise.clone()),
+                ));
+                world.push(Sphere::from([0., 2., 0.], 2., Lambertian::new(noise)));
+
+                world
+            }
+            PerlinMarbled => {
+                let mut world = HitList::new();
+                let noise = PerlinNoise::new(GLOBAL().seed, 2.)
+                    .fBm(2., 0.5, 5)
+                    .marbled((2., 0.), 2.0)
+                    .arc();
+                world.push(Sphere::from(
+                    [0., -1000., 0.],
+                    1000.,
+                    Lambertian::new(noise.clone()),
+                ));
+                world.push(Sphere::from(
+                    [0., 2., 0.],
+                    2.,
+                    Lambertian::new(noise),
                 ));
 
                 world
