@@ -222,23 +222,15 @@ impl ValueNoise {
     fn noise(&self, mut p: Vec3) -> f64 {
         p *= self.freq;
 
-        let xi = p.x.floor();
-        let yi = p.y.floor();
-        let zi = p.z.floor();
-
-        let tx = p.x - xi;
-        let ty = p.y - yi;
-        let tz = p.z - zi;
-
-        let sx = tx.smooth();
-        let sy = ty.smooth();
-        let sz = tz.smooth();
+        let floor_p = p.map(|f| f.floor());
+        let t = p - floor_p;
+        let smooth = t.map(|f| f.smooth());
 
         // The 6 values that determine the cube enclosing the given point
         // Do bitwise AND to get the euclidean remainder/modulo by 256.
-        let rx0 = xi as isize & Self::MASK;
-        let ry0 = yi as isize & Self::MASK;
-        let rz0 = zi as isize & Self::MASK;
+        let rx0 = floor_p.x as isize & Self::MASK;
+        let ry0 = floor_p.y as isize & Self::MASK;
+        let rz0 = floor_p.z as isize & Self::MASK;
         let rx1 = (rx0 + 1) & Self::MASK;
         let ry1 = (ry0 + 1) & Self::MASK;
         let rz1 = (rz0 + 1) & Self::MASK;
@@ -255,17 +247,17 @@ impl ValueNoise {
         let c111 = self.randoms[self.hash(rx1, ry1, rz1)];
 
         // lerp along X axis
-        let x00 = sx.lerp(c000, c100);
-        let x10 = sx.lerp(c010, c110);
-        let x01 = sx.lerp(c001, c101);
-        let x11 = sx.lerp(c011, c111);
+        let x00 = smooth.x.lerp(c000, c100);
+        let x10 = smooth.x.lerp(c010, c110);
+        let x01 = smooth.x.lerp(c001, c101);
+        let x11 = smooth.x.lerp(c011, c111);
 
         // lerp along Y axis
-        let y0 = sy.lerp(x00, x10);
-        let y1 = sy.lerp(x01, x11);
+        let y0 = smooth.y.lerp(x00, x10);
+        let y1 = smooth.y.lerp(x01, x11);
 
         // finally lerp along Z axis
-        sz.lerp(y0, y1)
+        smooth.z.lerp(y0, y1)
     }
 }
 /// Common noise patterns

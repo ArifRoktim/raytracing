@@ -61,6 +61,21 @@ impl Vec3 {
         Self::new(ret[0], ret[1], 0.)
     }
 
+    /// Applies an operation `f` to all fields of a `Vec3` and returns the result
+    /// # Example
+    /// ```
+    /// use raytracing::vec3::Vec3;
+    /// let a = Vec3::new(1.2, 2.3, 3.4);
+    /// assert_eq!(a.map(|f| f.floor() * 2.), Vec3::new(2., 4., 6.));
+    /// ```
+    pub fn map<F: FnMut(f64) -> f64>(self, mut f: F) -> Self {
+        Self {
+            x: f(self.x),
+            y: f(self.y),
+            z: f(self.z),
+        }
+    }
+
     pub fn norm(&self) -> f64 {
         self.norm_squared().sqrt()
     }
