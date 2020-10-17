@@ -282,11 +282,7 @@ impl Scene {
                     1000.,
                     Lambertian::new(noise.clone()),
                 ));
-                world.push(Sphere::from(
-                    [0., 2., 0.],
-                    2.,
-                    Lambertian::new(noise),
-                ));
+                world.push(Sphere::from([0., 2., 0.], 2., Lambertian::new(noise)));
 
                 world
             }
@@ -327,11 +323,7 @@ impl Scene {
                     1000.,
                     Lambertian::new(noise.clone()),
                 ));
-                world.push(Sphere::from(
-                    [0., 2., 0.],
-                    2.,
-                    Lambertian::new(noise),
-                ));
+                world.push(Sphere::from([0., 2., 0.], 2., Lambertian::new(noise)));
 
                 world
             }
@@ -364,11 +356,7 @@ impl Scene {
                     1000.,
                     Lambertian::new(noise.clone()),
                 ));
-                world.push(Sphere::from(
-                    [0., 2., 0.],
-                    2.,
-                    Lambertian::new(noise),
-                ));
+                world.push(Sphere::from([0., 2., 0.], 2., Lambertian::new(noise)));
 
                 world
             }
@@ -409,11 +397,7 @@ impl Scene {
                     1000.,
                     Lambertian::new(noise.clone()),
                 ));
-                world.push(Sphere::from(
-                    [0., 2., 0.],
-                    2.,
-                    Lambertian::new(noise),
-                ));
+                world.push(Sphere::from([0., 2., 0.], 2., Lambertian::new(noise)));
 
                 world
             }

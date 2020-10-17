@@ -243,9 +243,10 @@ pub trait NoiseAdapter: Sized {
         Self: 'static,
     {
         // Take the noise's callback. If there was none, create one that does nothing.
-        let callback = self.callback().take().unwrap_or_else(||
-            Box::new(|noise: &Self, p: Vec3| noise.noise(p))
-        );
+        let callback = self
+            .callback()
+            .take()
+            .unwrap_or_else(|| Box::new(|noise: &Self, p: Vec3| noise.noise(p)));
 
         let gain = self.freq() * noise_gain;
         let marbled = move |noise: &Self, p: Vec3| {
@@ -415,35 +416,36 @@ impl PerlinNoise {
             perms[i + Self::SIZE] = perms[i];
         }
 
-        Self { perms, freq, callback: None }
-    }
-
-    pub fn arc(self) -> Arc<Self> {
-        Arc::new(self)
+        Self {
+            perms,
+            freq,
+            callback: None,
+        }
     }
 
     /// Compute the dot product between a vector and one of the predefined gradients
     pub fn dot_gradient(perm: usize, v: Vec3) -> f64 {
-        let Vec3 {x, y, z} = v;
+        let Vec3 { x, y, z } = v;
         // Modulo 16
         let gradient = perm & 15;
-        match gradient {    // GRADIENTS
-            0 => x + y,     // (1,1,0)
-            1 => -x + y,    // (-1,1,0)
-            2 => x - y,     // (1,-1,0)
-            3 => -x - y,    // (-1,-1,0)
-            4 => x + z,     // (1,0,1)
-            5 => -x + z,    // (-1,0,1)
-            6 => x - z,     // (1,0,-1)
-            7 => -x - z,    // (-1,0,-1)
-            8 => y + z,     // (0,1,1)
-            9 => -y - z,    // (0,-1,1)
-            10 => y - z,    // (0,1,-1)
-            11 => -y - z,   // (0,-1,-1)
-            12 => x + y,    // (1,1,0)
-            13 => -x + y,   // (-1,1,0)
-            14 => -y + z,   // (0,-1,1)
-            15 => -y - z,   // (0,-1,-1)
+        match gradient {
+            // Product    // GRADIENT
+            0 => x + y,   // (1,1,0)
+            1 => -x + y,  // (-1,1,0)
+            2 => x - y,   // (1,-1,0)
+            3 => -x - y,  // (-1,-1,0)
+            4 => x + z,   // (1,0,1)
+            5 => -x + z,  // (-1,0,1)
+            6 => x - z,   // (1,0,-1)
+            7 => -x - z,  // (-1,0,-1)
+            8 => y + z,   // (0,1,1)
+            9 => -y - z,  // (0,-1,1)
+            10 => y - z,  // (0,1,-1)
+            11 => -y - z, // (0,-1,-1)
+            12 => x + y,  // (1,1,0)
+            13 => -x + y, // (-1,1,0)
+            14 => -y + z, // (0,-1,1)
+            15 => -y - z, // (0,-1,-1)
             _ => unreachable!(),
         }
     }
@@ -542,4 +544,3 @@ impl NoiseAdapter for PerlinNoise {
         &mut self.callback
     }
 }
-
