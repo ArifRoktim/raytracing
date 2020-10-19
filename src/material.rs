@@ -174,7 +174,7 @@ pub trait NoiseAdapter: Sized {
     fn freq(&self) -> f64;
     fn callback(&mut self) -> &mut Option<Box<Callback<Self>>>;
 
-    fn arc(self) -> Arc<Self> {
+    fn into_arc(self) -> Arc<Self> {
         Arc::new(self)
     }
 

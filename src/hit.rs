@@ -68,6 +68,16 @@ pub trait Hittable: Sync + Debug {
     /// Returns the bounding box for the `Hittable`.  
     /// `shutter_time` affects the bounding_box of moving `Hittable`s (e.g. `MovingSphere`).
     fn bounding_box(&self, shutter_time: &Range<f64>) -> Option<AABB>;
+
+    /// Create a HitList from this Hittable
+    fn into_hitlist(self) -> HitList
+    where
+        Self: Sized + 'static,
+    {
+        let mut list = HitList::new();
+        list.push(self);
+        list
+    }
 }
 
 #[derive(Default, Debug)]
@@ -79,6 +89,11 @@ impl HitList {
 
     pub fn push<T: Hittable + 'static>(&mut self, val: T) {
         self.0.push(Box::new(val))
+    }
+
+    /// Converts `self` into a BVH
+    pub fn into_bvh(self, shutter_time: &Range<f64>, rng: &mut CrateRng) -> BVH {
+        BVH::from_list(self, shutter_time, rng)
     }
 }
 impl Hittable for HitList {

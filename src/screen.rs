@@ -11,7 +11,7 @@ pub struct Screen {
     pub width: usize,
     pub height: usize,
     /// Flat buffer of 24-bit pixels with length of `width * height`
-    pub buffer: Box<[Color]>,
+    buffer: Box<[Color]>,
 }
 impl Screen {
     pub fn new(width: usize, height: usize) -> Self {

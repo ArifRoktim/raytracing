@@ -12,7 +12,7 @@ use strum_macros::{EnumString, EnumVariantNames};
 use crate::material::{Checkered, Dielectric, Lambertian, Metal};
 use crate::material::{NoiseAdapter, PerlinNoise, ValueNoise};
 use crate::shape::{MovingSphere, Sphere};
-use crate::{Axis, Camera, Color, CrateRng, HitList, Vec3, BVH};
+use crate::{Axis, Camera, Color, CrateRng, HitList, Vec3};
 
 static CONFIG: OnceCell<Config> = OnceCell::new();
 
@@ -156,7 +156,7 @@ impl Scene {
                     Lambertian::new(checker),
                 ));
 
-                let mut bvh_list = HitList::new();
+                let mut list = HitList::new();
                 for a in -11..11 {
                     for b in -11..11 {
                         let (x, z) = (0.9 * rng.gen::<f64>(), 0.9 * rng.gen::<f64>());
@@ -169,33 +169,32 @@ impl Scene {
                             // diffuse
                             let material = Lambertian::new(Color::rand(rng) * Color::rand(rng));
                             let center2 = center + Vec3::new(0., rng.gen_range(0., 0.5), 0.);
-                            bvh_list.push(MovingSphere::new(center, center2, 0.2, material));
+                            list.push(MovingSphere::new(center, center2, 0.2, material));
                         } else if material < 0.95 {
                             // metal
                             let albedo = Color::rand_range(rng, 0.5, 1.);
                             let fuzz = rng.gen_range(0., 0.5);
-                            bvh_list.push(Sphere::new(center, 0.2, Metal::new(albedo, fuzz)));
+                            list.push(Sphere::new(center, 0.2, Metal::new(albedo, fuzz)));
                         } else {
                             // glass
-                            bvh_list.push(Sphere::new(center, 0.2, Dielectric::new(1.5)));
+                            list.push(Sphere::new(center, 0.2, Dielectric::new(1.5)));
                         }
                     }
                 }
 
-                bvh_list.push(Sphere::from([0., 1., 0.], 1., Dielectric::new(1.5)));
-                bvh_list.push(Sphere::from(
+                list.push(Sphere::from([0., 1., 0.], 1., Dielectric::new(1.5)));
+                list.push(Sphere::from(
                     [-4., 1., 0.],
                     1.,
                     Lambertian::new(Color::new(0.4, 0.2, 0.1)),
                 ));
-                bvh_list.push(Sphere::from(
+                list.push(Sphere::from(
                     [4., 1., 0.],
                     1.,
                     Metal::from([0.7, 0.6, 0.5], 0.0),
                 ));
 
-                let bvh = BVH::from_list(bvh_list, &(0.0..1.), rng);
-                world.push(bvh);
+                world.push(list.into_bvh(&(0.0..1.), rng));
 
                 world
             }
@@ -276,7 +275,7 @@ impl Scene {
             }
             ValueNoise2 => {
                 let mut world = HitList::new();
-                let noise = ValueNoise::new(GLOBAL().seed, 4.).arc();
+                let noise = ValueNoise::new(GLOBAL().seed, 4.).into_arc();
                 world.push(Sphere::from(
                     [0., -1000., 0.],
                     1000.,
@@ -288,7 +287,7 @@ impl Scene {
             }
             ValueNoisePink => {
                 let mut world = HitList::new();
-                let noise = ValueNoise::new(GLOBAL().seed, 2.).fBm(2., 0.5, 5).arc();
+                let noise = ValueNoise::new(GLOBAL().seed, 2.).fBm(2., 0.5, 5).into_arc();
                 world.push(Sphere::from(
                     [0., -1000., 0.],
                     1000.,
@@ -302,7 +301,7 @@ impl Scene {
                 let mut world = HitList::new();
                 let noise = ValueNoise::new(GLOBAL().seed, 5.)
                     .turbulence(1.8, 0.35, 5)
-                    .arc();
+                    .into_arc();
                 world.push(Sphere::from(
                     [0., -1000., 0.],
                     1000.,
@@ -317,7 +316,7 @@ impl Scene {
                 let noise = ValueNoise::new(GLOBAL().seed, 3.)
                     .fBm(2., 0.5, 2)
                     .marbled((2., 2.5), 0.5)
-                    .arc();
+                    .into_arc();
                 world.push(Sphere::from(
                     [0., -1000., 0.],
                     1000.,
@@ -350,7 +349,7 @@ impl Scene {
             }
             PerlinNoise2 => {
                 let mut world = HitList::new();
-                let noise = PerlinNoise::new(GLOBAL().seed, 4.).arc();
+                let noise = PerlinNoise::new(GLOBAL().seed, 4.).into_arc();
                 world.push(Sphere::from(
                     [0., -1000., 0.],
                     1000.,
@@ -362,7 +361,7 @@ impl Scene {
             }
             PerlinNoisePink => {
                 let mut world = HitList::new();
-                let noise = PerlinNoise::new(GLOBAL().seed, 2.).fBm(2., 0.5, 5).arc();
+                let noise = PerlinNoise::new(GLOBAL().seed, 2.).fBm(2., 0.5, 5).into_arc();
                 world.push(Sphere::from(
                     [0., -1000., 0.],
                     1000.,
@@ -376,7 +375,7 @@ impl Scene {
                 let mut world = HitList::new();
                 let noise = PerlinNoise::new(GLOBAL().seed, 5.)
                     .turbulence(2., 0.5, 7)
-                    .arc();
+                    .into_arc();
                 world.push(Sphere::from(
                     [0., -1000., 0.],
                     1000.,
@@ -391,7 +390,7 @@ impl Scene {
                 let noise = PerlinNoise::new(GLOBAL().seed, 2.)
                     .fBm(2., 0.5, 5)
                     .marbled((2., 0.), 2.0)
-                    .arc();
+                    .into_arc();
                 world.push(Sphere::from(
                     [0., -1000., 0.],
                     1000.,
