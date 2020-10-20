@@ -246,8 +246,8 @@ impl BVH {
             left = hitlist.pop().unwrap();
             right = hitlist.pop().unwrap();
         } else {
+            let axis = rng.gen();
             hitlist.sort_unstable_by(|a, b| {
-                let axis = rng.gen();
                 let a = a.bounding_box(shutter_time).expect(err_msg);
                 let b = b.bounding_box(shutter_time).expect(err_msg);
                 a.compare_axis(&b, axis)
